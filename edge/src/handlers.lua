@@ -49,11 +49,33 @@ function handlers.switch_on(driver, device, _cmd, deps)
   poll.emit_switch(device, poll.current_switch(device), true, deps)
 end
 
---- switch.off: there is no way to put a PS5 to rest from here (that would
---- need the Remote Play protocol). Answer with the real value so the toggle
---- springs back instead of spinning.
-function handlers.switch_off(_driver, device, _cmd, deps)
-  log.info(device.id .. ": switch off is not supported; use the console or HDMI-CEC")
+--- switch.off: rest mode over Remote Play (`POST /standby`) unless the
+--- `offAction` preference says to ignore it. The switch goes "off" at once;
+--- a refused or unconfirmed standby springs it back. A console that is not
+--- on is just answered with its real value.
+function handlers.switch_off(driver, device, _cmd, deps)
+  deps = deps or {}
+  local prefs = device.preferences or {}
+  if prefs.offAction == "ignore" then
+    log.info(device.id .. ": switch off ignored (offAction = ignore)")
+    poll.emit_switch(device, poll.current_switch(device), true, deps)
+    return
+  end
+  if device:get_field(poll.F_POWER) ~= "on" then
+    poll.emit_switch(device, poll.current_switch(device), true, deps)
+    return
+  end
+  poll.emit_switch(device, "off", true, deps)
+  local ok, body, kind = client.standby(device, deps)
+  if ok then
+    log.info(string.format("%s: standby %s (%s)", device.id, tostring(body.outcome), tostring(body.state)))
+    poll.once(driver, device, deps)
+    return
+  end
+  local detail = type(body) == "table" and body.error or nil
+  log.warn(string.format("%s: standby failed: %s%s", device.id, tostring(kind),
+    detail and (" (" .. tostring(detail) .. ")") or ""))
+  -- Still on as far as we know: the toggle springs back.
   poll.emit_switch(device, poll.current_switch(device), true, deps)
 end
 

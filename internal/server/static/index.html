@@ -54,6 +54,7 @@
     <div class="actions">
       <button id="btnStatus">상태 조회</button>
       <button id="btnWake" class="primary">깨우기</button>
+      <button id="btnStandby">휴식 모드</button>
       <button id="btnAdapter">어댑터 확인</button>
     </div>
     <div class="msg" id="actMsg"></div>
@@ -77,6 +78,8 @@
       </div>
       <label for="hci">블루투스 어댑터</label>
       <input id="hci" name="hci" placeholder="hci0">
+      <label for="api_secret">API 시크릿 (깨우기·휴식 모드 호출에 필요, 비우면 LAN 누구나 호출 가능)</label>
+      <input id="api_secret" name="api_secret" placeholder="SmartThings 장치 설정의 시크릿과 같게" autocomplete="off" spellcheck="false">
       <div class="row">
         <div>
           <label for="status_timeout_ms">상태 조회 대기 (ms)</label>
@@ -104,6 +107,33 @@
   </section>
 
   <section>
+    <h2>Remote Play 등록 (휴식 모드 · 네트워크 깨우기)</h2>
+    <p class="hint">PS5 에 Remote Play 클라이언트로 등록하면 휴식 모드로 보낼 수 있고, 휴식 모드에서는 블루투스 없이 네트워크로 깨웁니다. PS5 설정 → 시스템 → 리모트 플레이에서 "리모트 플레이 활성화" 가 켜져 있어야 합니다.</p>
+    <div class="state" id="rpState" style="font-size:15px">확인 전</div>
+    <div class="meta" id="rpMeta"></div>
+    <div id="rpSteps">
+      <label>1. PSN 계정 ID</label>
+      <p class="hint">[PSN 로그인] 을 눌러 새 탭에서 로그인하면 "redirect" 페이지로 갑니다. 그 페이지의 주소를 복사해 아래에 붙여넣고 [계정 ID 가져오기] 를 누르세요. 숫자 계정 ID 를 이미 안다면 그 값을 넣어도 됩니다.</p>
+      <div class="actions">
+        <button type="button" id="btnPsnLogin">PSN 로그인</button>
+      </div>
+      <input id="rpRedirect" placeholder="https://remoteplay.dl.playstation.net/remoteplay/redirect?code=… 또는 숫자 계정 ID" autocomplete="off" spellcheck="false">
+      <div class="actions">
+        <button type="button" id="btnAccount">계정 ID 가져오기</button>
+      </div>
+      <label for="rpAccount">계정 ID (base64)</label>
+      <input id="rpAccount" placeholder="AAAAAAAAAEI=" autocomplete="off" spellcheck="false">
+      <label for="rpPin">2. PS5 가 보여 주는 PIN (설정 → 시스템 → 리모트 플레이 → 기기 연결)</label>
+      <input id="rpPin" placeholder="12345678" inputmode="numeric" maxlength="8" autocomplete="off">
+      <div class="actions">
+        <button type="button" id="btnRegister" class="primary">등록</button>
+        <button type="button" id="btnUnregister">등록 해제</button>
+      </div>
+    </div>
+    <div class="msg" id="rpMsg"></div>
+  </section>
+
+  <section>
     <h2>듀얼센스에서 주소 읽기</h2>
     <p class="hint">듀얼센스를 이 PC 에 USB 로 꽂고 버튼을 누르면 크롬 WebHID 로 컨트롤러 주소와 마지막으로 페어링된 PS5 주소를 읽어 위 칸에 채웁니다. 서버에는 아무것도 꽂을 필요가 없습니다.</p>
     <p class="hint" id="hidHint"></p>
@@ -117,14 +147,18 @@
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const fields = ["ps5_ip", "controller_addr", "ps5_addr", "hci", "status_timeout_ms", "wake_timeout_ms", "wake_attempts", "wake_retry_ms"];
+  const fields = ["ps5_ip", "controller_addr", "ps5_addr", "hci", "api_secret", "status_timeout_ms", "wake_timeout_ms", "wake_attempts", "wake_retry_ms"];
 
   function say(el, text, cls) { el.textContent = text; el.className = "msg " + (cls || ""); }
   function show(pre, obj) { pre.hidden = false; pre.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2); }
 
   async function api(method, path, body) {
+    const headers = body ? { "Content-Type": "application/json" } : {};
+    // The LAN actions want the API secret; the page knows it from the form.
+    const secret = ($("api_secret").value || "").trim();
+    if (secret && (path === "/wake" || path === "/standby")) headers["X-PS5-Secret"] = secret;
     const res = await fetch(path, {
-      method, headers: body ? { "Content-Type": "application/json" } : {},
+      method, headers,
       body: body ? JSON.stringify(body) : undefined, cache: "no-store",
     });
     let data = null;
@@ -169,18 +203,95 @@
   }
   $("btnStatus").addEventListener("click", refreshStatus);
 
+  const methodLabel = { none: "이미 켜져 있음", network: "네트워크(Remote Play)", bluetooth: "블루투스" };
   $("btnWake").addEventListener("click", async () => {
     const b = $("btnWake"); b.disabled = true;
-    say($("actMsg"), "깨우는 중… 어댑터 주소를 바꾸고 PS5 를 페이지합니다. 최대 30초쯤 걸립니다.");
+    say($("actMsg"), "깨우는 중… 휴식 모드면 네트워크로, 아니면 블루투스로 페이지합니다. 최대 1분쯤 걸립니다.");
     try {
       const r = await api("POST", "/wake");
       const d = r.data || {};
+      const bt = d.bluetooth || {};
       show($("actOut"), d);
-      if (r.ok) say($("actMsg"), `성공: ${d.status_text} (${d.attempts}회 시도)`, "ok");
-      else if (r.status === 504) say($("actMsg"), `응답 없음: ${d.status_text} (${d.attempts}회 시도). PS5 가 꺼져 있고 거리 밖이거나, 컨트롤러 주소가 페어링 목록에 없을 수 있습니다.`, "warn");
-      else say($("actMsg"), "실패: " + (d.error || d.status_text || r.status), "err");
-      if (d.restored === false) say($("actMsg"), $("actMsg").textContent + " 경고: 어댑터 주소 원복 실패, 원래 주소 " + d.original_addr, "err");
+      const how = methodLabel[d.method] || d.method;
+      if (r.ok) say($("actMsg"), `성공 (${how})${bt.status_text ? ": " + bt.status_text + " (" + bt.attempts + "회 시도)" : ""}`, "ok");
+      else if (r.status === 504) say($("actMsg"), `응답 없음 (${how})${bt.status_text ? ": " + bt.status_text + " (" + bt.attempts + "회 시도)" : ""}. ${d.error || "PS5 가 꺼져 있고 거리 밖이거나, 컨트롤러 주소가 페어링 목록에 없을 수 있습니다."}`, "warn");
+      else if (r.status === 401) say($("actMsg"), "API 시크릿이 맞지 않습니다. 설정을 저장했는지 확인하세요.", "err");
+      else say($("actMsg"), `실패 (${how}): ` + (d.error || bt.status_text || r.status), "err");
+      if (bt.restored === false) say($("actMsg"), $("actMsg").textContent + " 경고: 어댑터 주소 원복 실패, 원래 주소 " + bt.original_addr, "err");
+      if (r.ok) setTimeout(refreshStatus, 3000);
     } finally { b.disabled = false; }
+  });
+
+  $("btnStandby").addEventListener("click", async () => {
+    const b = $("btnStandby"); b.disabled = true;
+    say($("actMsg"), "휴식 모드로 보내는 중… Remote Play 세션을 열고 확인까지 최대 30초쯤 걸립니다.");
+    try {
+      const r = await api("POST", "/standby");
+      const d = r.data || {};
+      show($("actOut"), d);
+      if (r.ok) say($("actMsg"), `휴식 모드 (${stateLabel[d.state] || d.state})`, "ok");
+      else if (r.status === 409) say($("actMsg"), "먼저 아래에서 Remote Play 등록을 하세요: " + (d.error || ""), "warn");
+      else if (r.status === 401) say($("actMsg"), "API 시크릿이 맞지 않습니다. 설정을 저장했는지 확인하세요.", "err");
+      else say($("actMsg"), "실패: " + (d.error || r.status), "err");
+      if (r.ok) setTimeout(refreshStatus, 2000);
+    } finally { b.disabled = false; }
+  });
+
+  // ---- Remote Play registration ----
+  let loginUrl = "";
+  async function loadRemotePlay() {
+    const r = await api("GET", "/api/remoteplay");
+    if (!r.ok) { say($("rpMsg"), "등록 상태를 불러오지 못했습니다: " + (r.data && r.data.error || r.status), "err"); return; }
+    const d = r.data;
+    loginUrl = d.login_url || "";
+    if (!d.available) {
+      $("rpState").textContent = "이 빌드에는 Remote Play 가 없습니다";
+      $("rpSteps").hidden = true;
+      return;
+    }
+    if (d.registered) {
+      $("rpState").textContent = "등록됨";
+      $("rpMeta").textContent = [d.nickname, d.mac, d.account_id, d.registered_at ? new Date(d.registered_at).toLocaleString() : ""].filter(Boolean).join(" · ");
+      $("rpAccount").value = d.account_id || "";
+    } else {
+      $("rpState").textContent = "미등록";
+      $("rpMeta").textContent = "등록 전에는 휴식 모드 전환과 네트워크 깨우기를 쓸 수 없습니다.";
+    }
+    $("btnUnregister").disabled = !d.registered;
+  }
+  $("btnPsnLogin").addEventListener("click", () => {
+    if (!loginUrl) { say($("rpMsg"), "로그인 주소를 아직 받지 못했습니다.", "err"); return; }
+    window.open(loginUrl, "_blank", "noopener");
+  });
+  $("btnAccount").addEventListener("click", async () => {
+    const v = $("rpRedirect").value.trim();
+    if (!v) { say($("rpMsg"), "리다이렉트된 주소나 숫자 계정 ID 를 넣으세요.", "warn"); return; }
+    const body = /^\d+$/.test(v) ? { user_id: v } : { redirect_url: v };
+    say($("rpMsg"), "계정 ID 조회 중…");
+    const r = await api("POST", "/api/remoteplay/account", body);
+    if (!r.ok) { say($("rpMsg"), "실패: " + (r.data && r.data.error || r.status), "err"); return; }
+    $("rpAccount").value = r.data.account_id;
+    say($("rpMsg"), "계정 ID " + r.data.account_id + ". 이제 PS5 의 PIN 을 넣고 등록하세요.", "ok");
+  });
+  $("btnRegister").addEventListener("click", async () => {
+    const account = $("rpAccount").value.trim(), pin = $("rpPin").value.trim();
+    if (!account || !/^\d{8}$/.test(pin)) { say($("rpMsg"), "계정 ID 와 8자리 PIN 이 필요합니다.", "warn"); return; }
+    const b = $("btnRegister"); b.disabled = true;
+    say($("rpMsg"), "등록 중… PS5 의 기기 연결 화면이 열려 있어야 합니다.");
+    try {
+      const r = await api("POST", "/api/remoteplay/register", { account_id: account, pin });
+      if (!r.ok) { say($("rpMsg"), "등록 실패: " + (r.data && r.data.error || r.status), "err"); return; }
+      say($("rpMsg"), `등록됐습니다: ${r.data.nickname || ""} ${r.data.mac || ""}`, "ok");
+      $("rpPin").value = "";
+      await loadRemotePlay();
+    } finally { b.disabled = false; }
+  });
+  $("btnUnregister").addEventListener("click", async () => {
+    if (!confirm("Remote Play 등록을 지울까요? 휴식 모드 전환과 네트워크 깨우기가 꺼집니다.")) return;
+    const r = await api("DELETE", "/api/remoteplay");
+    if (!r.ok) { say($("rpMsg"), "실패: " + (r.data && r.data.error || r.status), "err"); return; }
+    say($("rpMsg"), "등록을 지웠습니다.", "ok");
+    await loadRemotePlay();
   });
 
   $("btnAdapter").addEventListener("click", async () => {
@@ -237,7 +348,7 @@
     }
   });
 
-  loadConfig();
+  loadConfig().then(loadRemotePlay);
 })();
 </script>
 </body>

@@ -88,6 +88,29 @@ function T.test_empty_address_is_unconfigured_without_a_request()
   h.assert_equal(#http.requests, 0)
 end
 
+function T.test_secret_header_and_standby()
+  local http = h.http({ { code = 200, body = '{"outcome":"success","state":"standby"}' } })
+  local device = h.device({ serverAddress = "192.168.1.50", secret = "s3cret" })
+  local ok, body = client.standby(device, h.deps(http))
+  h.assert_true(ok)
+  h.assert_equal(body.state, "standby")
+  h.assert_equal(http.requests[1].method, "POST")
+  h.assert_equal(http.requests[1].url, "http://192.168.1.50:8580/standby")
+  h.assert_equal(http.requests[1].headers["X-PS5-Secret"], "s3cret")
+
+  -- no secret preference: no header at all
+  local http2 = h.http({ { code = 200, body = '{"state":"on"}' } })
+  client.get_status(h.device(), h.deps(http2))
+  h.assert_nil(http2.requests[1].headers["X-PS5-Secret"])
+end
+
+function T.test_wrong_secret_is_unauthorized()
+  local http = h.http({ { code = 401, body = '{"error":"missing or wrong X-PS5-Secret"}' } })
+  local ok, _, kind = client.wake(h.device(), h.deps(http))
+  h.assert_false(ok)
+  h.assert_equal(kind, "unauthorized")
+end
+
 function T.test_non_json_200_is_incompatible()
   local http = h.http({ { code = 200, body = "<html>captive portal</html>" } })
   local ok, _, kind = client.get_status(h.device(), h.deps(http))

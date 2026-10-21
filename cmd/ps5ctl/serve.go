@@ -48,7 +48,9 @@ func cmdServe(ctx context.Context, args []string) int {
 	if !auth.Enabled() {
 		logger.Printf("WARNING: PS5_AUTH_USER/PS5_AUTH_PASS not set; settings page and config API are disabled")
 	}
-	srv := server.New(store, server.RealDeps(), auth, version, logger)
+	deps := server.RealDeps()
+	wireRemotePlay(&deps, func(f string, a ...any) { logger.Printf("remoteplay: "+f, a...) })
+	srv := server.New(store, deps, auth, version, logger)
 	handler := srv.Handler()
 
 	var servers []*http.Server

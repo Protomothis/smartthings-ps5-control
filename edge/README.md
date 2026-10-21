@@ -4,8 +4,9 @@ ps5-control 서버를 위한 SmartThings Edge 드라이버다. 허브 안에서 
 서버의 `GET /status` · `POST /wake` 를 호출한다. 표준 capability(`switch`, `refresh`)만 쓴다.
 
 - **스위치 = PS5 전원** — 켜짐이면 켜짐, 휴식 모드·완전 종료면 꺼짐
-- **스위치 켜기 = 블루투스 깨우기** — 서버가 페이지를 끝낼 때까지 기다렸다가 90초 동안 5초마다 확인. 안 켜지면 되돌아간다
-- **스위치 끄기는 지원하지 않는다** — 토글이 되돌아간다(Remote Play 프로토콜은 범위 밖, 필요하면 HDMI-CEC)
+- **스위치 켜기 = 깨우기** — 서버가 휴식 모드면 네트워크(Remote Play), 아니면 블루투스로 깨운다. 끝날 때까지 기다렸다가 90초 동안 5초마다 확인. 안 켜지면 되돌아간다
+- **스위치 끄기 = 휴식 모드** — 서버의 Remote Play 등록이 필요하다. 없으면 토글이 되돌아간다. 환경설정 `스위치 끄기 동작` 을 `무시` 로 두면 끄기를 받지 않는다
+- **API 시크릿** — 서버 설정 페이지의 API 시크릿을 환경설정에 넣으면 `X-PS5-Secret` 헤더로 보낸다
 - **서버에 닿지 않으면 오프라인** 표시. PS5 가 꺼진 것과는 다르다
 
 ## 요구 사항
@@ -21,7 +22,7 @@ ps5-control 서버를 위한 SmartThings Edge 드라이버다. 허브 안에서 
 1. 채널 초대 링크를 열고 [Enroll] → 허브를 고른다 (채널은 아직 만들지 않았다)
 2. 채널의 **SmartThings PS5 Control** 을 [Install] 한다
 3. SmartThings 앱 **[+] → 기기 추가 → 주변 기기 검색** → `PS5` 장치가 생긴다
-4. 장치 설정에 **서버 주소**(예: `192.168.1.50`)를 넣는다. 포트는 기본 8580
+4. 장치 설정에 **서버 주소**(예: `192.168.1.50`)와 서버 설정 페이지에서 정한 **API 시크릿**을 넣는다. 포트는 기본 8580
 
 ## 개발
 
@@ -42,7 +43,7 @@ CI(`.github/workflows/edge.yml`)는 같은 테스트를 node 와 C Lua 5.3 로 �
 | 파일 | 역할 |
 |---|---|
 | `src/init.lua` | 핸들러 등록만 |
-| `src/client.lua` | HTTP 호출과 응답 코드 → 종류(`unreachable` `unconfigured` `busy` `unsupported` `timeout` …) |
+| `src/client.lua` | HTTP 호출(`/status` `/wake` `/standby`, 시크릿 헤더)과 응답 코드 → 종류(`unreachable` `unauthorized` `unconfigured` `busy` `unsupported` `timeout` …) |
 | `src/model.lua` | 순수 규칙: 상태 → 스위치 값, 재전송 시점, 깨우기 창 |
 | `src/poll.lua` | 폴링 타이머, 스위치 emit(중복 제거 + 10분 순환 재전송), 온라인/오프라인, 깨우기 후 빠른 폴링 |
 | `src/handlers.lua` | switch on/off · refresh · lifecycle |

@@ -61,10 +61,47 @@ function T.test_switch_on_when_already_on_only_answers()
   h.assert_true(h.last_switch_forced(device))
 end
 
-function T.test_switch_off_is_ignored_and_answered()
+local STANDBY_OK = { code = 200, body = '{"outcome":"success","state":"standby"}' }
+
+function T.test_switch_off_sends_standby()
   local device, clock = h.device(), h.clock()
   device.fields[poll.F_POWER] = "on"
-  local http = h.http({ WOKE })
+  local http = h.http({ STANDBY_OK, status("standby") })
+  handlers.switch_off(nil, device, {}, h.deps(http, clock))
+  h.assert_equal(http.requests[1].method, "POST")
+  h.assert_equal(http.requests[1].url, "http://192.168.1.50:8580/standby")
+  local values = h.switch_values(device)
+  h.assert_equal(values[1], "off", "optimistic off")
+  h.assert_true(h.last_switch_forced(device))
+  h.assert_equal(device.fields[poll.F_POWER], "standby", "the follow-up poll stored the new state")
+  h.assert_equal(#values, 1, "the poll's identical off is not re-sent")
+end
+
+function T.test_switch_off_failure_springs_back()
+  local device, clock = h.device(), h.clock()
+  device.fields[poll.F_POWER] = "on"
+  local http = h.http({ { code = 409, body = '{"error":"not configured: remote_play"}' } })
+  handlers.switch_off(nil, device, {}, h.deps(http, clock))
+  local values = h.switch_values(device)
+  h.assert_equal(values[1], "off")
+  h.assert_equal(values[2], "on", "springs back")
+  h.assert_true(h.last_switch_forced(device))
+end
+
+function T.test_switch_off_when_not_on_only_answers()
+  local device, clock = h.device(), h.clock()
+  device.fields[poll.F_POWER] = "standby"
+  local http = h.http({ STANDBY_OK })
+  handlers.switch_off(nil, device, {}, h.deps(http, clock))
+  h.assert_equal(#http.requests, 0, "nothing to do")
+  h.assert_equal(h.switch_values(device)[1], "off")
+  h.assert_true(h.last_switch_forced(device))
+end
+
+function T.test_switch_off_ignore_preference()
+  local device, clock = h.device({ serverAddress = "192.168.1.50", offAction = "ignore" }), h.clock()
+  device.fields[poll.F_POWER] = "on"
+  local http = h.http({ STANDBY_OK })
   handlers.switch_off(nil, device, {}, h.deps(http, clock))
   h.assert_equal(#http.requests, 0)
   h.assert_equal(h.switch_values(device)[1], "on", "the real value, forced")

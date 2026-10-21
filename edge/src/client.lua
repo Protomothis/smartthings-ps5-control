@@ -7,9 +7,10 @@
 -- Every call returns `(ok, body, kind)`:
 --   ok = true   -> body is the decoded JSON table, kind is nil
 --   ok = false  -> kind is one of "unreachable" (no HTTP answer at all),
---                  "unconfigured", "busy", "unsupported", "timeout",
---                  "error", "incompatible"; body may still carry the decoded
---                  response (`{ error = "..." }`).
+--                  "unauthorized" (wrong `secret` preference), "unconfigured",
+--                  "busy", "unsupported", "timeout", "error", "incompatible";
+--                  body may still carry the decoded response
+--                  (`{ error = "..." }`).
 --
 -- No module-level mutable state: the address comes from `device.preferences`,
 -- and `deps` lets tests inject a fake http/json/ltn12 instead of cosock.
@@ -38,11 +39,18 @@ function client.base_url(prefs)
   return string.format("http://%s:%d", ip, math.floor(port))
 end
 
-function client.headers()
-  return {
+--- Request headers. The `secret` preference travels in `X-PS5-Secret`
+--- (the server's api_secret); it is omitted when empty.
+function client.headers(prefs)
+  prefs = prefs or {}
+  local headers = {
     ["User-Agent"] = client.USER_AGENT,
     ["Accept"] = "application/json",
   }
+  if type(prefs.secret) == "string" and prefs.secret ~= "" then
+    headers["X-PS5-Secret"] = prefs.secret
+  end
+  return headers
 end
 
 -- The request function: `deps.http` (a function or a module with `.request`),
@@ -71,6 +79,9 @@ function client.classify(code)
   end
   if code >= 200 and code < 300 then
     return nil
+  end
+  if code == 401 then
+    return "unauthorized"
   end
   if code == 409 then
     return "unconfigured"
@@ -106,7 +117,7 @@ function client.request(device, opts, deps)
   local req = {
     url = base .. (opts.path or ""),
     method = opts.method or "GET",
-    headers = client.headers(),
+    headers = client.headers((device or {}).preferences),
     sink = ltn12.sink.table(chunks),
   }
   if req.method == "POST" then
@@ -152,6 +163,12 @@ end
 --- `POST /wake`. Blocks until the server has finished its attempts.
 function client.wake(device, deps)
   return client.request(device, { method = "POST", path = "/wake", timeout = client.WAKE_TIMEOUT }, deps)
+end
+
+--- `POST /standby`: rest mode over Remote Play. The server opens a session
+--- and then waits for discovery to confirm, up to ~30 s.
+function client.standby(device, deps)
+  return client.request(device, { method = "POST", path = "/standby", timeout = client.WAKE_TIMEOUT }, deps)
 end
 
 return client

@@ -105,6 +105,35 @@ SSDP 검색, push 구독, 프로필 생성기, i18n — 이 드라이버는 표�
 - 실측 대기: 허브에서 `GameConsole` 카테고리 아이콘, `device:online/offline` 표시, 60초 TIMEOUT 이 cosock
   에서 실제로 먹는지, 깨우기 뒤 PS5 가 9302 에 답하기까지의 시간(90초 창의 근거).
 
+### Remote Play: 휴식 모드 전환과 네트워크 깨우기 (2026-10-21, v0.1.0 에 포함)
+
+끄기(휴식 모드)를 지원하려면 PS5 의 Remote Play 프로토콜이 필요하고, 같은 등록 키로 휴식 모드에서 네트워크 깨우기까지
+된다. 그래서 블루투스는 완전 종료 상태 전용이 되고 동글 칩셋 리스크의 비중이 내려간다.
+
+- **출처**: dhleong/playactor (ISC) 의 PS5 부분만 `internal/remoteplay` 로 이식. 키 테이블은 `keys_ps5.go` 로 생성.
+  검증은 playactor 의 테스트 벡터(chiaki 가 만든 등록 본문 포함)와 playactor 를 직접 실행해 뽑은 세션 벡터
+  (`scratchpad` 의 `vectors.ts`), 그리고 가짜 콘솔로. 실기 PS5 검증은 사용자 몫.
+- **흐름**: 등록(설정 페이지: PSN 로그인 → 리다이렉트 URL 의 코드로 계정 ID → PS5 의 PIN → `POST /sie/ps5/rp/sess/rgst`)
+  → 등록 키·RP-Key 를 `config.json` 의 `remote_play` 에 저장. 깨우기는 UDP 9302 `WAKEUP`, 휴식 모드는
+  `/sess/init` → `/sess/ctrl` 세션에서 Login 후 Standby 패킷.
+- **서버 통합** (`internal/server/remoteplay.go`): 서버는 프로토콜 패키지를 직접 모르고 `RemotePlayClient` 인터페이스
+  (config 타입)로만 쓴다. `cmd/ps5ctl/remoteplay.go` 가 어댑터. 그래서 서버 테스트는 가짜로 돈다.
+- **`POST /wake` 순서**: 상태 조회 → `on` 이면 아무것도 안 함(`method: none`) → `standby` 이고 등록돼 있으면 네트워크
+  깨우기 후 최대 30초 상태 폴링 → 실패하거나 `off` 면 블루투스. `?method=` 로 고정 가능. 응답에 `method` 와
+  블루투스 세부(`bluetooth`)를 같이 준다. 블루투스 성공 뒤 상태 대기는 하지 않는다(드라이버가 폴링).
+- **`POST /standby`**: 켜져 있지 않으면 즉시 성공(세션 안 엶). 세션 뒤 최대 30초 동안 `standby`/`off` 를 기다리고
+  못 보면 504. 깨우기와 같은 mutex.
+- **API 시크릿**: `api_secret` 을 정하면 `/wake` `/standby` 에 `X-PS5-Secret` 필수(sha256 constant-time 비교).
+  `/status` 는 열어 둔다. 드라이버 환경설정 `secret`.
+- **등록 키 보호**: `GET /api/config` 는 `regist_key`/`rp_key` 를 `***` 로, `PUT /api/config` 는 `remote_play` 를
+  무시하고 저장된 것을 유지(`Store.Set`). 등록·해제는 `/api/remoteplay/*` (basic auth) 로만.
+- **PSN 로그인**: 서버가 PSN 비밀번호를 받지 않는다. 사용자 브라우저에서 로그인한 뒤 리다이렉트 URL 을 붙여넣으면
+  서버가 코드를 토큰과 교환해 `user_id` 만 읽는다. 숫자 계정 ID 를 직접 넣는 길도 둔다.
+- **드라이버**: 끄기 = `POST /standby`(즉시 off, 실패 시 되돌림), `offAction` 환경설정(`standby`/`ignore`),
+  `secret` 환경설정. `/wake` 의 네트워크 경로는 드라이버가 몰라도 된다.
+- 실측 대기: 등록 검색(UDP 9295 바인드)이 호스트 네트워크 컨테이너에서 되는지, 세션 `ctrl` 응답 뒤 패킷 스트림,
+  PIN 등록 뒤 PS5 가 보이는 닉네임, 휴식 모드 전환까지 걸리는 시간, 로그인 비밀번호 사용자의 `ErrPasscode`.
+
 ## 초기 요구사항 (2026-10-21 원문)
 
 ### 목표

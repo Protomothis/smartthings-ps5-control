@@ -45,6 +45,10 @@ linters:
         - G304
         # G104 (errors unhandled) duplicates errcheck.
         - G104
+        # G117 (secret-looking field marshalled to JSON): config.json is
+        # where the API secret and the Remote Play keys are meant to live;
+        # the API redacts them (config.Redacted).
+        - G117
 
   exclusions:
     generated: lax

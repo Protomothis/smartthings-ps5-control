@@ -37,9 +37,20 @@ type Deps struct {
 	Probe   func(ctx context.Context, host string, timeout time.Duration) (discovery.Status, error)
 	Wake    func(ctx context.Context, o wake.Options) (wake.Result, error)
 	Inspect func(adapter string) (wake.AdapterInfo, error)
+
+	// RemotePlay returns a client for the console at host; nil disables the
+	// network wake, standby and registration routes.
+	RemotePlay func(host string) RemotePlayClient
+	// AccountIDFromRedirect and AccountIDFromUserID derive the PSN account
+	// ID the registration needs; LoginURL is the PSN login the settings page
+	// opens to obtain the redirect URL.
+	AccountIDFromRedirect func(ctx context.Context, redirectURL string) (string, error)
+	AccountIDFromUserID   func(userID string) (string, error)
+	LoginURL              string
 }
 
-// RealDeps talks to the network and the adapter.
+// RealDeps talks to the network and the adapter. The Remote Play fields are
+// wired by cmd/ps5ctl, which adapts the protocol package.
 func RealDeps() Deps {
 	return Deps{Probe: discovery.Probe, Wake: wake.Wake, Inspect: wake.Inspect}
 }
@@ -55,6 +66,7 @@ type Server struct {
 	wakeMu  sync.Mutex
 	lastMu  sync.Mutex
 	lastRes *wakeRecord
+	timing  timing
 }
 
 type wakeRecord struct {
@@ -68,7 +80,7 @@ func New(cfg *config.Store, deps Deps, auth Auth, version string, logger *log.Lo
 	if logger == nil {
 		logger = log.Default()
 	}
-	return &Server{cfg: cfg, deps: deps, auth: auth, log: logger, version: version}
+	return &Server{cfg: cfg, deps: deps, auth: auth, log: logger, version: version, timing: defaultTiming()}
 }
 
 // Handler returns the routed http.Handler.
@@ -78,9 +90,14 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": s.version})
 	})
 	mux.HandleFunc("GET /status", s.handleStatus)
-	mux.HandleFunc("POST /wake", s.handleWake)
+	mux.HandleFunc("POST /wake", s.secretRequired(s.handleWake))
+	mux.HandleFunc("POST /standby", s.secretRequired(s.handleStandby))
 	mux.HandleFunc("GET /api/adapter", s.handleAdapter)
 	mux.HandleFunc("GET /api/wake/last", s.handleLastWake)
+	mux.Handle("GET /api/remoteplay", s.auth.Wrap(http.HandlerFunc(s.handleGetRemotePlay)))
+	mux.Handle("POST /api/remoteplay/account", s.auth.Wrap(http.HandlerFunc(s.handleAccountID)))
+	mux.Handle("POST /api/remoteplay/register", s.auth.Wrap(http.HandlerFunc(s.handleRegister)))
+	mux.Handle("DELETE /api/remoteplay", s.auth.Wrap(http.HandlerFunc(s.handleUnregister)))
 
 	// http.FileServer would redirect /index.html to "./", so serve the bytes.
 	page, err := fs.ReadFile(static, "static/index.html")
@@ -153,61 +170,15 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, statusResponse{Status: st, CheckedAt: time.Now(), Host: c.PS5IP})
 }
 
-// wakeResponse is what POST /wake returns.
-type wakeResponse struct {
-	wake.Result
-	Error string `json:"error,omitempty"`
-}
-
-func (s *Server) handleWake(w http.ResponseWriter, r *http.Request) {
-	c := s.cfg.Get()
-	if err := c.WakeReady(); err != nil {
-		writeError(w, http.StatusConflict, err)
-		return
-	}
-	if !s.wakeMu.TryLock() {
-		writeError(w, http.StatusLocked, errors.New("a wake is already in progress"))
-		return
-	}
-	defer s.wakeMu.Unlock()
-
-	// Finish the spoof/page/restore sequence even if the client goes away;
-	// an aborted sequence could leave the adapter with the spoofed address.
-	budget := time.Duration(c.WakeAttempts)*(c.WakeTimeout()+c.WakeRetryDelay()) + 15*time.Second
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), budget)
-	defer cancel()
-
-	res, err := s.deps.Wake(ctx, wake.Options{
-		Adapter:    c.HCI,
-		Controller: c.ControllerAddr,
-		Console:    c.PS5Addr,
-		Timeout:    c.WakeTimeout(),
-		Attempts:   c.WakeAttempts,
-		RetryDelay: c.WakeRetryDelay(),
-		Log:        func(f string, a ...any) { s.log.Printf("wake: "+f, a...) },
-	})
-	rec := &wakeRecord{At: time.Now(), Result: res}
-	if err != nil {
-		rec.Error = err.Error()
-	}
-	s.lastMu.Lock()
-	s.lastRes = rec
-	s.lastMu.Unlock()
-
-	resp := wakeResponse{Result: res, Error: rec.Error}
+// bluetoothErrorCode maps a failed Bluetooth wake to an HTTP status.
+func bluetoothErrorCode(err error) int {
 	switch {
 	case errors.Is(err, spoof.ErrUnsupportedAdapter):
-		writeJSON(w, http.StatusNotImplemented, resp)
+		return http.StatusNotImplemented
 	case errors.Is(err, hci.ErrPermission):
-		writeJSON(w, http.StatusInternalServerError, resp)
-	case err != nil:
-		writeJSON(w, http.StatusBadGateway, resp)
-	case res.Outcome == wake.OutcomeSuccess:
-		writeJSON(w, http.StatusOK, resp)
-	case res.Outcome == wake.OutcomeTimeout:
-		writeJSON(w, http.StatusGatewayTimeout, resp)
+		return http.StatusInternalServerError
 	default:
-		writeJSON(w, http.StatusBadGateway, resp)
+		return http.StatusBadGateway
 	}
 }
 
@@ -237,7 +208,7 @@ func (s *Server) handleAdapter(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.cfg.Get())
+	writeJSON(w, http.StatusOK, s.cfg.Get().Redacted())
 }
 
 func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
@@ -252,8 +223,8 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	s.log.Printf("config saved: ps5=%s ctrl=%s ps5bt=%s hci=%s", c.PS5IP, c.ControllerAddr, c.PS5Addr, c.HCI)
-	writeJSON(w, http.StatusOK, s.cfg.Get())
+	s.log.Printf("config saved: ps5=%s ctrl=%s ps5bt=%s hci=%s secret=%v", c.PS5IP, c.ControllerAddr, c.PS5Addr, c.HCI, c.APISecret != "")
+	writeJSON(w, http.StatusOK, s.cfg.Get().Redacted())
 }
 
 func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {

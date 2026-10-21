@@ -37,6 +37,8 @@ function T.test_profile_matches_discovery()
   h.assert_contains(text, "- id: switch")
   h.assert_contains(text, "- id: refresh")
   h.assert_contains(text, "name: serverAddress")
+  h.assert_contains(text, "name: secret")
+  h.assert_contains(text, "name: offAction")
 end
 
 return T

@@ -35,6 +35,7 @@ Usage:
   ps5ctl wake    --hci hci0 --controller <bdaddr> --ps5 <bdaddr>
                  [--timeout 6s] [--attempts 3] [--retry-delay 2s] [--json]
   ps5ctl serve   [--data /data] [--http :8580] [--https :8543] [--auth-user U --auth-pass P]
+  ps5ctl rp      account | register | wake | standby   (Remote Play; see ps5ctl rp)
 
 Exit codes:
   0  on / success        1  usage or local error
@@ -60,6 +61,8 @@ func main() {
 		code = cmdWake(ctx, os.Args[2:])
 	case "serve":
 		code = cmdServe(ctx, os.Args[2:])
+	case "rp":
+		code = cmdRP(ctx, os.Args[2:])
 	case "version", "--version", "-v":
 		fmt.Println(version)
 	case "help", "-h", "--help":

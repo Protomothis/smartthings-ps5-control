@@ -31,6 +31,57 @@ type Config struct {
 	WakeTimeoutMS   int `json:"wake_timeout_ms"`
 	WakeAttempts    int `json:"wake_attempts"`
 	WakeRetryMS     int `json:"wake_retry_ms"`
+
+	// APISecret, when set, is required in the X-PS5-Secret header of the
+	// LAN actions (POST /wake, POST /standby). Status stays open.
+	APISecret string `json:"api_secret"`
+
+	// RemotePlay is the Remote Play registration. It is written only by the
+	// registration flow, never by the settings form (Set keeps it).
+	RemotePlay *RemotePlay `json:"remote_play,omitempty"`
+}
+
+// RemotePlay is the credential the console hands out when a PIN is accepted.
+// RegistKey and RPKey let anyone start a Remote Play session, so the API
+// never returns them (see Redacted).
+type RemotePlay struct {
+	AccountID    string    `json:"account_id"`
+	RegistKey    string    `json:"regist_key"`
+	RPKey        string    `json:"rp_key"`
+	Nickname     string    `json:"nickname"`
+	Mac          string    `json:"mac"`
+	RegisteredAt time.Time `json:"registered_at"`
+}
+
+// Registered reports whether the registration carries both keys.
+func (r *RemotePlay) Registered() bool {
+	return r != nil && r.RegistKey != "" && r.RPKey != ""
+}
+
+// Redacted returns a copy safe to show: keys replaced by their presence.
+func (c Config) Redacted() Config {
+	if c.RemotePlay != nil {
+		rp := *c.RemotePlay
+		if rp.RegistKey != "" {
+			rp.RegistKey = "***"
+		}
+		if rp.RPKey != "" {
+			rp.RPKey = "***"
+		}
+		c.RemotePlay = &rp
+	}
+	return c
+}
+
+// RemotePlayReady reports whether a network wake or a standby can run.
+func (c Config) RemotePlayReady() error {
+	if err := c.StatusReady(); err != nil {
+		return err
+	}
+	if !c.RemotePlay.Registered() {
+		return fmt.Errorf("%w: remote_play (register on the settings page)", ErrNotConfigured)
+	}
+	return nil
 }
 
 // Default returns the settings a fresh install starts with.
@@ -159,13 +210,28 @@ func (s *Store) Get() Config {
 	return s.cur
 }
 
-// Set validates, persists and swaps in a new config.
+// Set validates, persists and swaps in a new config. The Remote Play
+// registration is server-owned: whatever c carries, the stored one is kept.
 func (s *Store) Set(c Config) error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	c.RemotePlay = s.cur.RemotePlay
+	if err := s.write(c); err != nil {
+		return err
+	}
+	s.cur = c
+	return nil
+}
+
+// SetRemotePlay stores (or, with nil, clears) the Remote Play registration.
+func (s *Store) SetRemotePlay(rp *RemotePlay) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := s.cur
+	c.RemotePlay = rp
 	if err := s.write(c); err != nil {
 		return err
 	}
