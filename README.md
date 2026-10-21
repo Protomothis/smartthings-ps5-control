@@ -1,111 +1,133 @@
-# smartthings-ps5-control
+<div align="center">
 
-홈서버(리눅스)에서 PS5 전원 상태를 조회하고, 완전 종료·휴식 모드에서 블루투스로 깨우는
-경량 컨테이너. 이후 스마트싱스 Edge 드라이버가 LAN 에서 이 API 를 호출한다.
+# SmartThings PS5 Control
 
-- 전부 Go, 단일 정적 바이너리, `scratch` 이미지, 외부 의존성은 `golang.org/x/sys` 뿐
-- Remote Play 프로토콜(standby 전환)은 범위 밖. 끄기가 필요하면 HDMI-CEC 로 대체
+**홈서버 컨테이너 하나로 PS5 전원 상태를 보고 블루투스로 깨우는 SmartThings 연동**<br>
+<sub>PS5 power state and Bluetooth wake from a tiny home-server container, with its own SmartThings Edge driver</sub>
 
-## 동작 원리
+[![Release](https://img.shields.io/github/v/release/Protomothis/smartthings-ps5-control?style=flat-square)](https://github.com/Protomothis/smartthings-ps5-control/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/Protomothis/smartthings-ps5-control/ci.yml?style=flat-square&label=CI)](https://github.com/Protomothis/smartthings-ps5-control/actions/workflows/ci.yml)
+[![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat-square&logo=go)](https://go.dev)
+[![Image](https://img.shields.io/badge/ghcr.io-smartthings--ps5--control-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/Protomothis/smartthings-ps5-control/pkgs/container/smartthings-ps5-control)
+[![License](https://img.shields.io/github/license/Protomothis/smartthings-ps5-control?style=flat-square)](LICENSE)
+[![Sponsor](https://img.shields.io/github/sponsors/Protomothis?style=flat-square&logo=githubsponsors&label=Sponsor&color=EA4AAA)](https://github.com/sponsors/Protomothis)
 
-| 기능 | 방법 |
-|---|---|
-| 상태 조회 | PS5 IP 의 UDP 9302 로 `SRCH * HTTP/1.1` 탐색 패킷 전송. `200 Ok` = 켜짐, `620 Server Standby` = 휴식 모드, 무응답 = 꺼짐. 인증 불필요. 휴식 모드 응답은 PS5 의 "인터넷에 연결된 상태 유지" 옵션이 켜져 있어야 함 |
-| 블루투스 wake | 동글의 BD_ADDR 를 PS5 에 페어링된 듀얼센스 주소로 바꾼 뒤(벤더 HCI 명령) PS5 BD_ADDR 로 `HCI_Create_Connection`. PS5 는 페이지의 출발 주소만 보고 켜지므로 링크키가 없어도 된다. 끝나면 동글 주소 원복 |
-| 주소 추출 (1회) | 설정 페이지에서 크롬 WebHID 로 USB 연결된 듀얼센스의 feature report `0x09` 를 읽어 컨트롤러 주소·PS5 주소를 얻어 저장 (3단계에서 구현) |
+[한국어](#한국어) · [English](#english)
 
-### 동글 칩셋 지원 (BD_ADDR 변경 명령)
+</div>
 
-| 제조사 (SIG ID) | 명령 | 리셋 | 검증 |
-|---|---|---|---|
-| Broadcom (0x000F) | 0xFC01 | 필수 | 상위 구현에서 검증됨 |
-| Cypress (0x0131) | 0xFC01 | 시도 | RPi 3/4/5 내장칩 검증됨 |
-| Intel (0x0002) | 0xFC31 | 필수 | AX201 검증됨 |
-| MediaTek (0x0046) | 0xFC1A | 불필요 | MT7921 검증됨 |
-| TI / Atheros / Qualcomm ROME | 0xFC06 / 0xFC0B | 시도 | 커널 소스 기준, 미검증 |
-| CSR (0x000A) | BCCMD | - | 미구현 |
-| Realtek (0x005D) | 없음 | - | 런타임 변경 불가. 펌웨어 config blob 교체 + 드라이버 재적재 방식만 가능 (별도 검토) |
+---
 
-## 진행 상태
+## 한국어
 
-- [x] 1. 상태 조회 CLI (`ps5ctl status`)
-- [x] 2. wake CLI (`ps5ctl adapter`, `ps5ctl wake`) — 실기 테스트 전
-- [x] 3. HTTP 서버 + 설정 페이지 (`ps5ctl serve`: basic auth, `/data/config.json`, WebHID 주소 추출, 자체서명 HTTPS)
-- [x] 4. 최소 이미지 배포 — `v*` 태그에 `release.yml` 이 ghcr 이미지(amd64·arm64)와 바이너리를 올림. 첫 태그 전
-- [x] 5. 스마트싱스 Edge 드라이버 골격 — [edge/](edge/README.md): switch(켜기 = wake, 끄기 무시) · refresh, 30초 폴링. 허브 설치 전
+Go 정적 바이너리 하나가 `scratch` 이미지로 홈서버(리눅스)에서 돌면서 PS5 전원 상태를 조회하고,
+완전 종료·휴식 모드의 PS5 를 블루투스로 깨웁니다. 전용 SmartThings Edge 드라이버가 허브 안에서 로컬로 이 API 를 호출합니다.
 
-### 가장 먼저 확인할 리스크
+> **아직 실기 검증 전입니다.** 유닛 테스트와 lint 만 통과한 상태이고, 실제 PS5·블루투스 동글로는 돌려 보지 않았습니다. 첫 릴리스(v0.1.0)는 검증 뒤에 나옵니다.
 
-1. 홈서버 블루투스 동글 칩셋 — `ps5ctl adapter` 로 확인. Realtek/저가 CSR 이면 스푸핑 불가
-2. 완전 종료 상태에서 스푸핑 wake 가 실제로 되는지
-3. PS5 와 서버 사이 블루투스 거리
+### 무엇을 할 수 있나
 
-## 사용법
+- **전원 상태** — PS5 의 UDP 9302 탐색 프로토콜로 켜짐 · 휴식 모드 · 꺼짐을 구분합니다. 인증이 필요 없고, 휴식 모드 응답은 PS5 의 "인터넷에 연결된 상태 유지" 가 켜져 있어야 합니다.
+- **블루투스 깨우기** — 동글의 BD_ADDR 를 PS5 에 페어링된 듀얼센스 주소로 바꾼 뒤 PS5 를 페이지합니다. PS5 는 페이지의 출발 주소만 보고 켜지므로 링크키가 필요 없습니다. 끝나면 동글 주소를 되돌립니다.
+- **설정 페이지** — PS5 IP · 블루투스 주소 · 어댑터를 저장하고 상태 조회 · 깨우기 · 어댑터 확인 버튼으로 바로 확인합니다. 크롬에서 USB 로 꽂은 듀얼센스를 읽어(WebHID) 컨트롤러와 PS5 주소를 채웁니다.
+- **SmartThings** — 스위치 하나. 켜기는 깨우기, 끄기는 지원하지 않아 토글이 되돌아갑니다(Remote Play 프로토콜은 범위 밖, 필요하면 HDMI-CEC). 서버에 닿지 않으면 장치가 오프라인으로 보입니다.
+- **작게** — 외부 의존성은 `golang.org/x/sys` 뿐, 이미지는 수 MB, 메모리 제한 32 MB 로 돕니다.
 
-```bash
-go build -o ps5ctl ./cmd/ps5ctl
+### 블루투스 동글
 
-# 1. 상태 (어느 OS 에서나 동작)
-./ps5ctl status --ip 192.168.1.20            # on / standby / off, exit 0 / 2 / 3
-./ps5ctl status --ip 192.168.1.20 --json
+BD_ADDR 변경은 표준 HCI 명령이 없어 칩셋별 벤더 명령을 씁니다. `ps5ctl adapter` 로 미리 확인하세요.
 
-# 2. 동글 확인 (리눅스, root 또는 CAP_NET_RAW+CAP_NET_ADMIN)
-sudo ./ps5ctl adapter --hci hci0
+| 칩셋 (SIG ID) | 명령 | 검증 |
+|---|---|---|
+| Broadcom (0x000F) · Cypress (0x0131) | 0xFC01 | 상위 구현에서 검증됨 (RPi 내장칩 포함) |
+| Intel (0x0002) | 0xFC31 | AX201 검증됨 |
+| MediaTek (0x0046) | 0xFC1A | MT7921 검증됨 |
+| TI · Atheros · Qualcomm ROME | 0xFC06 / 0xFC0B | 커널 소스 기준, 미검증 |
+| CSR (0x000A) | BCCMD | 미구현 |
+| Realtek (0x005D) | 없음 | 런타임 변경 불가. 펌웨어 config 교체 방식은 범위 밖 |
 
-# 3. wake 테스트
-#    --controller: 페어링된 듀얼센스 BD_ADDR
-#    --ps5:        PS5 블루투스 BD_ADDR (Wi-Fi MAC 아님)
-sudo ./ps5ctl wake --hci hci0 --controller AA:BB:CC:DD:EE:FF --ps5 11:22:33:44:55:66
-```
+### 설치
 
-wake 결과 해석: `0x00`/`0x13`/`0x16` 은 PS5 가 응답한 것(성공), `0x04` Page Timeout 은
-무응답(꺼져 있거나 거리 밖이거나 주소가 페어링 목록에 없음). 기본 3회 재시도, 2초 간격.
+1. 홈서버에 저장소를 받고 `.env.example` 을 `.env` 로 복사해 설정 페이지 계정을 정합니다.
+2. `docker compose up -d --build` (호스트 네트워크, `NET_ADMIN` · `NET_RAW`, `./data` 볼륨). 이미지는 릴리스 뒤 `ghcr.io/protomothis/smartthings-ps5-control` 로도 받습니다.
+3. `https://<서버>:8543/` 을 열고 자체서명 인증서를 한 번 허용합니다. **어댑터 확인**으로 동글 칩셋이 지원되는지 봅니다.
+4. 듀얼센스를 PC 에 USB 로 꽂고 **USB 듀얼센스 읽기** → PS5 IP 를 넣고 **저장** → **깨우기**로 시험합니다.
+5. 채널 초대 링크로 허브에 **SmartThings PS5 Control** 드라이버를 설치합니다(채널은 첫 릴리스와 함께 엽니다).
+6. SmartThings 앱 **[+] → 기기 추가 → 주변 기기 검색** → `PS5` 장치의 설정에 **서버 주소**를 넣습니다.
 
-## 서버 (`ps5ctl serve`)
+컨테이너 없이 쓰려면 `go build -o ps5ctl ./cmd/ps5ctl` 뒤 `ps5ctl status --ip <PS5>` · `sudo ps5ctl adapter` · `sudo ps5ctl wake --controller … --ps5 …` · `ps5ctl serve` 입니다.
 
-```bash
-cp .env.example .env          # PS5_AUTH_USER / PS5_AUTH_PASS 설정
-docker compose up -d --build
-```
-
-호스트 네트워크를 쓰므로 포트 매핑이 없다. 기본 포트와 경로:
+### 포트와 API
 
 | 주소 | 용도 | 인증 |
 |---|---|---|
-| `http://<서버>:8580/status` | 전원 상태 JSON (`state`: on / standby / off). Edge 드라이버가 폴링 | 없음 (LAN 전용) |
-| `http://<서버>:8580/wake` (POST) | wake 실행. 200 성공, 504 무응답, 501 동글 미지원, 423 이미 진행 중, 409 설정 없음 | 없음 (LAN 전용) |
-| `http://<서버>:8580/api/adapter` | 동글 칩셋·지원 여부 | 없음 |
-| `https://<서버>:8543/` | 설정 페이지 | basic auth |
-| `/api/config` (GET/PUT), `/api/info` | 설정 API | basic auth |
-| `/healthz` | 헬스체크 | 없음 |
+| `http://<서버>:8580/status` | 전원 상태 JSON (`state`: on / standby / off). 드라이버가 폴링 | 없음 (LAN 전용) |
+| `http://<서버>:8580/wake` (POST) | 깨우기. 200 성공 · 504 무응답 · 501 동글 미지원 · 423 진행 중 · 409 설정 없음 | 없음 (LAN 전용) |
+| `https://<서버>:8543/` | 설정 페이지 (`/api/config`, `/api/info` 포함) | basic auth |
+| `/api/adapter`, `/healthz` | 동글 정보, 헬스체크 | 없음 |
 
-환경변수: `PS5_DATA`(기본 `/data`), `PS5_HTTP_ADDR`(`:8580`, 빈 값이면 끔), `PS5_HTTPS_ADDR`(`:8543`, 빈 값이면 끔),
-`PS5_TLS_HOSTS`(인증서 SAN 추가), `PS5_AUTH_USER`/`PS5_AUTH_PASS`(없으면 설정 페이지·설정 API 가 503 으로 닫힘).
+환경변수: `PS5_AUTH_USER` · `PS5_AUTH_PASS`(없으면 설정 페이지가 503 으로 닫힘), `PS5_HTTP_ADDR`(`:8580`), `PS5_HTTPS_ADDR`(`:8543`), `PS5_TLS_HOSTS`, `PS5_DATA`(`/data`).
 
-HTTPS 는 첫 실행 때 `/data/tls/` 에 자체서명 인증서를 만든다(ECDSA, 10년, SAN 에 localhost 와 서버 IP 전부).
-브라우저에서 한 번 예외를 허용하면 된다. 재발급하려면 두 파일을 지우고 재시작.
-API 는 LAN 전용이고 외부에 노출하지 않는다.
+### 문제 해결
 
-### 주소 추출 (설정 페이지의 WebHID)
+- **깨우기가 `timeout`** — PS5 가 꺼진 채 블루투스 거리 밖이거나, 컨트롤러 주소가 PS5 의 페어링 목록에 없습니다. 듀얼센스를 PS5 에 한 번 페어링한 뒤 주소를 다시 읽으세요.
+- **`unsupported`** — 동글 칩셋이 BD_ADDR 변경을 지원하지 않습니다(Realtek · CSR). 위 표의 칩셋으로 바꿔야 합니다.
+- **WebHID 버튼이 꺼져 있음** — HTTP 로 열었거나 크로미움 계열이 아닙니다. `https://…:8543/` 을 크롬 · 엣지로 여세요.
+- **읽은 PS5 주소가 `00:00:00:00:00:00`** — 그 컨트롤러는 아직 PS5 와 블루투스로 페어링된 적이 없습니다.
+- **휴식 모드인데 `off`** — PS5 설정 → 시스템 → 절전 → 휴식 모드 중 사용 가능한 기능 → "인터넷에 연결된 상태 유지".
+- **로그** — `docker compose logs -f ps5`. 깨우기 한 번의 전 과정(칩셋, 원래 주소, 시도마다의 상태 코드, 원복)이 남습니다.
 
-듀얼센스를 **설정 페이지를 여는 PC** 에 USB 로 꽂고 "USB 듀얼센스 읽기" 를 누르면 크롬 WebHID 가
-feature report `0x09` (20 바이트) 를 읽어 1~6 바이트의 컨트롤러 주소와 10~15 바이트의 페어링된 PS5 주소를
-칸에 채운다(둘 다 역순). 서버에는 아무것도 꽂지 않는다. 조건은 둘이다.
+### 보안
 
-- 크롬·엣지 등 크로미움 계열 (파이어폭스·사파리는 WebHID 없음)
-- HTTPS 로 열 것. `http://…:8580/` 에서는 버튼이 비활성화되고 이유를 보여준다
+- 설정 페이지와 설정 API 만 basic auth 입니다. `/status` · `/wake` 는 인증이 없으므로 **LAN 밖으로 노출하지 마세요**. 팡골린 같은 리버스 프록시 뒤에 두려면 설정 페이지만 두세요.
+- 자체서명 인증서는 `/data/tls/` 에 있고 WebHID 의 보안 컨텍스트를 위한 것입니다. 지우면 다시 만듭니다.
+- 컨테이너는 `cap_drop: ALL` 에 `NET_ADMIN` · `NET_RAW` 만 더하고 읽기 전용 루트로 돕니다.
 
-듀얼센스 엣지(0x0DF2)·듀얼쇼크4(report `0x12`) 도 같은 오프셋으로 읽는다.
-PS5 주소가 `00:00:00:00:00:00` 이면 아직 PS5 와 블루투스로 페어링된 적이 없는 컨트롤러다.
+### 문서와 개발
 
-## 개발
+- 변경 이력: [CHANGELOG](CHANGELOG.md)(서버) · [edge/CHANGELOG](edge/CHANGELOG.md)(드라이버)
+- 개발: [CONTRIBUTING.md](CONTRIBUTING.md)(브랜치 · 커밋 · 테스트 · 릴리스 규칙), 드라이버는 [`edge/README.md`](edge/README.md), 결정과 근거는 [`docs/design.md`](docs/design.md)
+- 참고 구현: [FreeTHX/pywakepsx-on-bt](https://github.com/FreeTHX/pywakepsx-on-bt)(칩셋별 스푸핑의 원본), [gamahacka/ps5-wake-bluetooth-linux](https://github.com/gamahacka/ps5-wake-bluetooth-linux)(Realtek 우회)
 
-브랜치·커밋·테스트·릴리스 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md), 변경 이력은 [CHANGELOG.md](CHANGELOG.md)(서버)와
-[edge/CHANGELOG.md](edge/CHANGELOG.md)(드라이버). CI 는 Go(`ci.yml`)와 드라이버(`edge.yml`)가 따로 돌고,
-`v*` 태그는 `release.yml` 이 이미지와 바이너리를, `edge-v*` 태그는 `edge.yml` 이 드라이버 패키지를 낸다.
+### 후원
 
-## 참고 구현
+이 프로젝트는 무료이고, 모든 기능은 앞으로도 무료입니다. 쓰시다가 도움이 됐다면 ⭐ Star나 [GitHub Sponsors](https://github.com/sponsors/Protomothis)로 응원해 주세요. 후원금은 블루투스 동글과 SmartThings 허브처럼 실제 환경에서 검증하는 데 씁니다. 버그 제보와 실기 결과 공유도 큰 도움이 됩니다.
 
-- [FreeTHX/pywakepsx-on-bt](https://github.com/FreeTHX/pywakepsx-on-bt) — 칩셋별 스푸핑 전략과 HCI 흐름의 원본
-- [gamahacka/ps5-wake-bluetooth-linux](https://github.com/gamahacka/ps5-wake-bluetooth-linux) — Realtek 동글용 펌웨어 config 우회
-- 자세한 설계 메모: [docs/design.md](docs/design.md)
+---
+
+## English
+
+A single static Go binary in a `scratch` image on a Linux home server reads the PS5's power state and wakes it over
+Bluetooth from rest mode or full power-off. A dedicated SmartThings Edge driver calls it locally from the hub.
+
+> **Not yet verified on hardware.** Unit tests and lint pass; nothing has run against a real PS5 or dongle. The first release (v0.1.0) follows that verification.
+
+### What it does
+
+- **Power state** — the PS5's UDP 9302 discovery protocol tells on, rest mode and off apart. No authentication; rest mode only answers with "Stay connected to the Internet" enabled.
+- **Bluetooth wake** — the dongle's BD_ADDR is rewritten to that of a DualSense paired with the console, the console is paged, and the address is restored. The PS5 powers on from the page's source address alone, so no link key is needed. Supported chipsets: Broadcom, Cypress, Intel, MediaTek (TI, Atheros and Qualcomm ROME untested); Realtek and CSR cannot be used.
+- **Settings page** — PS5 IP, Bluetooth addresses and adapter, with status / wake / adapter buttons. In Chrome, a DualSense plugged into the PC by USB is read over WebHID to fill in the controller and PS5 addresses.
+- **SmartThings** — one switch: on wakes the console, off is not supported and springs back (the Remote Play protocol is out of scope; use HDMI-CEC). The device goes offline when the server is unreachable.
+
+### Install
+
+1. On the home server, copy `.env.example` to `.env` and set the settings-page credentials, then `docker compose up -d --build` (host network, `NET_ADMIN` + `NET_RAW`, `./data` volume). Releases also publish `ghcr.io/protomothis/smartthings-ps5-control`.
+2. Open `https://<server>:8543/`, accept the self-signed certificate once, and press **Check adapter** to confirm the dongle chipset is supported.
+3. Plug a DualSense into the PC by USB, press **Read USB DualSense**, enter the PS5 IP, save, and try **Wake**.
+4. Install the **SmartThings PS5 Control** driver from the channel invite (opened with the first release), then **[+] → Add device → Scan nearby** and set the **server address** in the device settings.
+
+`GET /status` and `POST /wake` on port 8580 are unauthenticated and meant for the LAN only; the settings page on 8543 uses basic auth. Details and troubleshooting are in the Korean section above.
+
+### Docs
+
+[CONTRIBUTING.md](CONTRIBUTING.md), [`edge/README.md`](edge/README.md) and [`docs/design.md`](docs/design.md) (Korean).
+
+### Sponsor
+
+This project is free, and every feature will stay free. If it helps you, a ⭐ star or [GitHub Sponsors](https://github.com/sponsors/Protomothis) keeps it going: sponsorship pays for real-device testing such as Bluetooth dongles and SmartThings hubs. Bug reports and test results help just as much.
+
+---
+
+## License
+
+[MIT](LICENSE)
