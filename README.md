@@ -14,6 +14,8 @@
 
 [한국어](#한국어) · [English](#english)
 
+<img src="docs/architecture.png" alt="구조도: SmartThings 앱과 허브의 Edge 드라이버, 크롬 설정 페이지가 홈서버의 ps5ctl 컨테이너를 호출하고, 컨테이너가 상태 조회·Remote Play·블루투스로 PS5를 다룬다" width="680">
+
 </div>
 
 ---
