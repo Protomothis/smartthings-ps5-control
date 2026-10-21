@@ -62,13 +62,25 @@ defer: 원래 주소로 벤더 쓰기 (실패 시 로그 + Result.Restored=false
 - 타임아웃(기본 2초) 안에 0.5초마다 재전송. 무응답은 에러가 아니라 `off`
 - 출발 IP 가 대상과 다른 데이터그램은 무시
 
-## 다음 단계 (3단계 HTTP 서버) 메모
+### 3단계 HTTP 서버 (2026-10-21 구현)
 
-- `GET /status` → discovery 결과 JSON (캐시 없음, Edge 드라이버가 30~60초 폴링)
-- `POST /wake` → wake.Wake, 결과 JSON. 어댑터 직렬화(동시 wake 금지, mutex)
-- `GET /` 설정 페이지 (basic auth): PS5 IP, 컨트롤러 주소, PS5 주소, hci 장치, 테스트 버튼, WebHID 읽기 버튼
-- `/data/config.json`, 비밀번호는 환경변수 또는 config
-- API 는 LAN 전용. 외부 노출 금지
+- 단일 바이너리 유지: `ps5ctl serve` 서브커맨드. 이미지 `CMD ["serve"]`
+- `GET /status` → discovery 즉시 실행, 캐시 없음 (Edge 드라이버가 30~60초 폴링). 미설정 409, 로컬 오류 502
+- `POST /wake` → `wake.Wake`. `sync.Mutex.TryLock` 으로 동시 실행 금지(423). 클라이언트가 끊어도 원복까지
+  끝나도록 `context.WithoutCancel` + 예산(시도수×(대기+간격)+15초). 응답 코드: 200 성공 / 504 무응답 /
+  501 동글 미지원 / 500 권한 / 502 기타. 마지막 결과는 `GET /api/wake/last`
+- 설정 페이지·`/api/config`·`/api/info` 만 basic auth. 자격은 환경변수 `PS5_AUTH_USER`/`PS5_AUTH_PASS`.
+  없으면 그 경로들은 503 (열어두지 않음). sha256 후 constant-time 비교
+- `/data/config.json` 은 임시파일 + rename 으로 원자적 저장. 부분 파일은 기본값으로 채움. 알 수 없는 필드 거부
+- HTTPS: WebHID 가 보안 컨텍스트를 요구해서 선택지 A(자체서명)를 채택. `/data/tls/{cert,key}.pem` 없으면
+  ECDSA P-256 10년짜리 생성, SAN = localhost + 127.0.0.1 + ::1 + 호스트의 모든 IP + `PS5_TLS_HOSTS`.
+  HTTP(:8580) 는 Edge 드라이버용으로 같이 열어둠 (Lua 쪽에서 자체서명 TLS 검증을 피하려고)
+- 설정 페이지는 임베드된 단일 HTML. `http.FileServer` 는 `/index.html` 을 `./` 로 301 시키므로 바이트를
+  직접 서빙. 시스템 테마 따름
+- WebHID: `requestDevice` 필터 Sony 0x054C × {0x0CE6, 0x0DF2, 0x05C4, 0x09CC}. `receiveFeatureReport(0x09|0x12)`
+  결과는 크롬이 report ID 를 앞에 붙이므로 `b[0]==reportId` 면 오프셋 1, 아니면 0 으로 양쪽 다 허용
+- 검증: 유닛 테스트(httptest + 가짜 deps) 와 Windows 루프백에서 1회 수동 호출(401/200, 설정 저장, status off,
+  wake 는 리눅스 아님 502). 실제 WebHID 읽기와 실기 wake 는 미검증
 
 ## 초기 요구사항 (2026-10-21 원문)
 

@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PS5 전원 제어 설정</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --text: #191f28; --muted: #6b7684; --line: #e5e8eb;
+    --accent: #3182f6; --accent-text: #ffffff; --ok: #1b9c5a; --warn: #d9480f; --err: #e5484d;
+    --field: #f9fafb; --focus: rgba(49,130,246,.25);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101418; --card: #191f27; --text: #e8ecf1; --muted: #8b95a1; --line: #2a323c;
+      --accent: #4e8ff7; --field: #121820; --focus: rgba(78,143,247,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 18px 16px; margin-bottom: 14px; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); color: var(--text); font: inherit; font-variant-numeric: tabular-nums; }
+  input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  @media (max-width: 480px) { .row { grid-template-columns: 1fr; } }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  button { padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: transparent; }
+  button:disabled { opacity: .5; cursor: default; }
+  .state { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.on { background: var(--ok); } .dot.standby { background: var(--warn); } .dot.off { background: var(--err); }
+  .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  pre { margin: 10px 0 0; padding: 10px 12px; background: var(--field); border: 1px solid var(--line); border-radius: 10px; font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow: auto; }
+  .msg { margin-top: 10px; font-size: 14px; } .msg.ok { color: var(--ok); } .msg.err { color: var(--err); } .msg.warn { color: var(--warn); }
+  .hint { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+  code { font-size: 13px; background: var(--field); padding: 1px 5px; border-radius: 5px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>PS5 전원 제어</h1>
+  <p class="sub">LAN 전용. 스마트싱스 Edge 드라이버는 <code>GET /status</code>, <code>POST /wake</code> 를 호출합니다.</p>
+
+  <section>
+    <h2>현재 상태</h2>
+    <div class="state"><span class="dot" id="dot"></span><span id="stateText">확인 전</span></div>
+    <div class="meta" id="stateMeta"></div>
+    <div class="actions">
+      <button id="btnStatus">상태 조회</button>
+      <button id="btnWake" class="primary">깨우기</button>
+      <button id="btnAdapter">어댑터 확인</button>
+    </div>
+    <div class="msg" id="actMsg"></div>
+    <pre id="actOut" hidden></pre>
+  </section>
+
+  <section>
+    <h2>설정</h2>
+    <form id="cfg">
+      <label for="ps5_ip">PS5 IP 주소</label>
+      <input id="ps5_ip" name="ps5_ip" placeholder="192.168.1.20" autocomplete="off">
+      <div class="row">
+        <div>
+          <label for="controller_addr">듀얼센스 블루투스 주소</label>
+          <input id="controller_addr" name="controller_addr" placeholder="AA:BB:CC:DD:EE:FF" autocomplete="off" spellcheck="false">
+        </div>
+        <div>
+          <label for="ps5_addr">PS5 블루투스 주소</label>
+          <input id="ps5_addr" name="ps5_addr" placeholder="11:22:33:44:55:66" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <label for="hci">블루투스 어댑터</label>
+      <input id="hci" name="hci" placeholder="hci0">
+      <div class="row">
+        <div>
+          <label for="status_timeout_ms">상태 조회 대기 (ms)</label>
+          <input id="status_timeout_ms" name="status_timeout_ms" type="number" min="200" max="30000" step="100">
+        </div>
+        <div>
+          <label for="wake_timeout_ms">페이지 응답 대기 (ms)</label>
+          <input id="wake_timeout_ms" name="wake_timeout_ms" type="number" min="1000" max="30000" step="500">
+        </div>
+        <div>
+          <label for="wake_attempts">깨우기 시도 횟수</label>
+          <input id="wake_attempts" name="wake_attempts" type="number" min="1" max="10">
+        </div>
+        <div>
+          <label for="wake_retry_ms">재시도 간격 (ms)</label>
+          <input id="wake_retry_ms" name="wake_retry_ms" type="number" min="0" max="30000" step="500">
+        </div>
+      </div>
+      <div class="actions">
+        <button type="submit" class="primary">저장</button>
+        <button type="button" id="btnReload">다시 불러오기</button>
+      </div>
+      <div class="msg" id="cfgMsg"></div>
+    </form>
+  </section>
+
+  <section>
+    <h2>듀얼센스에서 주소 읽기</h2>
+    <p class="hint">듀얼센스를 이 PC 에 USB 로 꽂고 버튼을 누르면 크롬 WebHID 로 컨트롤러 주소와 마지막으로 페어링된 PS5 주소를 읽어 위 칸에 채웁니다. 서버에는 아무것도 꽂을 필요가 없습니다.</p>
+    <p class="hint" id="hidHint"></p>
+    <div class="actions">
+      <button id="btnHid" class="primary">USB 듀얼센스 읽기</button>
+    </div>
+    <div class="msg" id="hidMsg"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const fields = ["ps5_ip", "controller_addr", "ps5_addr", "hci", "status_timeout_ms", "wake_timeout_ms", "wake_attempts", "wake_retry_ms"];
+
+  function say(el, text, cls) { el.textContent = text; el.className = "msg " + (cls || ""); }
+  function show(pre, obj) { pre.hidden = false; pre.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2); }
+
+  async function api(method, path, body) {
+    const res = await fetch(path, {
+      method, headers: body ? { "Content-Type": "application/json" } : {},
+      body: body ? JSON.stringify(body) : undefined, cache: "no-store",
+    });
+    let data = null;
+    try { data = await res.json(); } catch (_) { /* empty body */ }
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  // ---- config ----
+  async function loadConfig() {
+    const r = await api("GET", "/api/config");
+    if (!r.ok) { say($("cfgMsg"), "설정을 불러오지 못했습니다: " + (r.data && r.data.error || r.status), "err"); return; }
+    for (const f of fields) $(f).value = r.data[f] ?? "";
+    say($("cfgMsg"), "");
+  }
+  $("cfg").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const body = {};
+    for (const f of fields) {
+      const v = $(f).value.trim();
+      body[f] = f.endsWith("_ms") || f === "wake_attempts" ? Number(v) : v;
+    }
+    const r = await api("PUT", "/api/config", body);
+    if (!r.ok) { say($("cfgMsg"), "저장 실패: " + (r.data && r.data.error || r.status), "err"); return; }
+    for (const f of fields) $(f).value = r.data[f] ?? "";
+    say($("cfgMsg"), "저장했습니다.", "ok");
+  });
+  $("btnReload").addEventListener("click", loadConfig);
+
+  // ---- actions ----
+  const stateLabel = { on: "켜짐", standby: "휴식 모드", off: "꺼짐 (응답 없음)", unknown: "알 수 없는 응답" };
+  async function refreshStatus() {
+    say($("actMsg"), "상태 조회 중…");
+    const r = await api("GET", "/status");
+    if (!r.ok) { say($("actMsg"), "조회 실패: " + (r.data && r.data.error || r.status), "err"); return; }
+    const st = r.data.state;
+    $("dot").className = "dot " + st;
+    $("stateText").textContent = stateLabel[st] || st;
+    const f = r.data.fields || {};
+    $("stateMeta").textContent = [f["host-name"], f["host-type"], r.data.code ? "코드 " + r.data.code : "", new Date(r.data.checked_at).toLocaleTimeString()].filter(Boolean).join(" · ");
+    say($("actMsg"), "");
+    show($("actOut"), r.data);
+  }
+  $("btnStatus").addEventListener("click", refreshStatus);
+
+  $("btnWake").addEventListener("click", async () => {
+    const b = $("btnWake"); b.disabled = true;
+    say($("actMsg"), "깨우는 중… 어댑터 주소를 바꾸고 PS5 를 페이지합니다. 최대 30초쯤 걸립니다.");
+    try {
+      const r = await api("POST", "/wake");
+      const d = r.data || {};
+      show($("actOut"), d);
+      if (r.ok) say($("actMsg"), `성공: ${d.status_text} (${d.attempts}회 시도)`, "ok");
+      else if (r.status === 504) say($("actMsg"), `응답 없음: ${d.status_text} (${d.attempts}회 시도). PS5 가 꺼져 있고 거리 밖이거나, 컨트롤러 주소가 페어링 목록에 없을 수 있습니다.`, "warn");
+      else say($("actMsg"), "실패: " + (d.error || d.status_text || r.status), "err");
+      if (d.restored === false) say($("actMsg"), $("actMsg").textContent + " 경고: 어댑터 주소 원복 실패, 원래 주소 " + d.original_addr, "err");
+    } finally { b.disabled = false; }
+  });
+
+  $("btnAdapter").addEventListener("click", async () => {
+    say($("actMsg"), "어댑터 확인 중…");
+    const r = await api("GET", "/api/adapter");
+    const d = r.data || {};
+    show($("actOut"), d);
+    if (!r.ok) { say($("actMsg"), "확인 실패: " + (d.error || r.status), "err"); return; }
+    if (d.supported) say($("actMsg"), `${d.adapter}: ${d.manufacturer}, 주소 변경 지원 (평점 ${d.rating}/4), BD_ADDR ${d.addr}`, "ok");
+    else say($("actMsg"), `${d.adapter}: ${d.manufacturer}, 주소 변경 미지원. 이 동글로는 깨울 수 없습니다.`, "err");
+  });
+
+  // ---- WebHID ----
+  const SONY = 0x054C;
+  const DS4 = [0x05C4, 0x09CC];
+  const hidOK = !!navigator.hid;
+  if (!window.isSecureContext) {
+    $("hidHint").textContent = "이 페이지는 HTTP 로 열려 있어 WebHID 를 쓸 수 없습니다. HTTPS 주소(기본 포트 8543)로 다시 열고 자체서명 인증서를 한 번 허용하세요.";
+    $("btnHid").disabled = true;
+  } else if (!hidOK) {
+    $("hidHint").textContent = "이 브라우저는 WebHID 를 지원하지 않습니다. 크롬 또는 엣지에서 여세요.";
+    $("btnHid").disabled = true;
+  }
+  const mac = (b, off) => Array.from({ length: 6 }, (_, i) => b[off + 5 - i].toString(16).padStart(2, "0").toUpperCase()).join(":");
+
+  $("btnHid").addEventListener("click", async () => {
+    say($("hidMsg"), "");
+    let dev;
+    try {
+      const devs = await navigator.hid.requestDevice({ filters: [
+        { vendorId: SONY, productId: 0x0CE6 }, // DualSense
+        { vendorId: SONY, productId: 0x0DF2 }, // DualSense Edge
+        { vendorId: SONY, productId: 0x05C4 }, // DualShock 4 v1
+        { vendorId: SONY, productId: 0x09CC }, // DualShock 4 v2
+      ]});
+      dev = devs[0];
+      if (!dev) { say($("hidMsg"), "선택된 장치가 없습니다.", "warn"); return; }
+      await dev.open();
+      const reportId = DS4.includes(dev.productId) ? 0x12 : 0x09;
+      const view = await dev.receiveFeatureReport(reportId);
+      const b = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+      // Chrome prefixes the report ID; tolerate either layout.
+      const off = b[0] === reportId ? 1 : 0;
+      if (b.length < off + 15) { say($("hidMsg"), `보고서가 짧습니다 (${b.length} 바이트).`, "err"); return; }
+      const ctrl = mac(b, off), ps5 = mac(b, off + 9);
+      $("controller_addr").value = ctrl;
+      $("ps5_addr").value = ps5;
+      if (ps5 === "00:00:00:00:00:00") say($("hidMsg"), `컨트롤러 ${ctrl} 를 읽었지만 페어링된 PS5 주소가 비어 있습니다. 먼저 PS5 와 블루투스로 페어링하세요.`, "warn");
+      else say($("hidMsg"), `${dev.productName}: 컨트롤러 ${ctrl}, PS5 ${ps5}. 저장 버튼을 눌러 반영하세요.`, "ok");
+    } catch (e) {
+      say($("hidMsg"), "읽기 실패: " + (e && e.message || e), "err");
+    } finally {
+      if (dev && dev.opened) { try { await dev.close(); } catch (_) {} }
+    }
+  });
+
+  loadConfig();
+})();
+</script>
+</body>
+</html>

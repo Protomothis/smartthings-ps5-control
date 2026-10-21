@@ -16,7 +16,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 FROM scratch
 COPY --from=build /out/ps5ctl /ps5ctl
-# /data will hold config.json once the HTTP server lands.
+# /data holds config.json and the self-signed tls/ pair.
 VOLUME ["/data"]
+EXPOSE 8580 8543
 ENTRYPOINT ["/ps5ctl"]
-CMD ["help"]
+CMD ["serve"]

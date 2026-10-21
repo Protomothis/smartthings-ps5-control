@@ -34,6 +34,7 @@ Usage:
   ps5ctl adapter --hci hci0 [--json]
   ps5ctl wake    --hci hci0 --controller <bdaddr> --ps5 <bdaddr>
                  [--timeout 6s] [--attempts 3] [--retry-delay 2s] [--json]
+  ps5ctl serve   [--data /data] [--http :8580] [--https :8543] [--auth-user U --auth-pass P]
 
 Exit codes:
   0  on / success        1  usage or local error
@@ -57,6 +58,8 @@ func main() {
 		code = cmdAdapter(os.Args[2:])
 	case "wake":
 		code = cmdWake(ctx, os.Args[2:])
+	case "serve":
+		code = cmdServe(ctx, os.Args[2:])
 	case "version", "--version", "-v":
 		fmt.Println(version)
 	case "help", "-h", "--help":
