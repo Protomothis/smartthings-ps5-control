@@ -73,7 +73,7 @@ func Probe(ctx context.Context, host string, timeout time.Duration) (Status, err
 	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
 		deadline = d
 	}
-	stop := context.AfterFunc(ctx, func() { conn.SetReadDeadline(time.Now()) })
+	stop := context.AfterFunc(ctx, func() { _ = conn.SetReadDeadline(time.Now()) })
 	defer stop()
 
 	buf := make([]byte, 2048)
@@ -85,7 +85,7 @@ func Probe(ctx context.Context, host string, timeout time.Duration) (Status, err
 		if next.After(deadline) {
 			next = deadline
 		}
-		conn.SetReadDeadline(next)
+		_ = conn.SetReadDeadline(next)
 		for {
 			n, from, err := conn.ReadFromUDP(buf)
 			if err != nil {

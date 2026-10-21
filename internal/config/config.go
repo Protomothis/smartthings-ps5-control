@@ -2,6 +2,7 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -90,7 +91,9 @@ func (c Config) WakeReady() error {
 func (c Config) Validate() error {
 	if c.PS5IP != "" {
 		if ip := net.ParseIP(c.PS5IP); ip == nil {
-			if _, err := net.LookupHost(c.PS5IP); err != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			if _, err := net.DefaultResolver.LookupHost(ctx, c.PS5IP); err != nil {
 				return fmt.Errorf("ps5_ip: %q is neither an IP nor a resolvable name", c.PS5IP)
 			}
 		}
@@ -124,7 +127,7 @@ type Store struct {
 
 // Open reads dir/config.json, creating it with defaults when missing.
 func Open(dir string) (*Store, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, fmt.Errorf("config: create data dir: %w", err)
 	}
 	s := &Store{path: filepath.Join(dir, FileName), cur: Default()}
@@ -176,7 +179,7 @@ func (s *Store) write(c Config) error {
 		return err
 	}
 	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, append(data, '\n'), 0o644); err != nil {
+	if err := os.WriteFile(tmp, append(data, '\n'), 0o600); err != nil {
 		return fmt.Errorf("config: write %s: %w", tmp, err)
 	}
 	if err := os.Rename(tmp, s.path); err != nil {

@@ -88,7 +88,7 @@ func cmdStatus(ctx context.Context, args []string) int {
 	ip := fs.String("ip", "", "PS5 IP address or hostname (required)")
 	timeout := fs.Duration("timeout", discovery.DefaultTimeout, "how long to wait for a reply")
 	asJSON := fs.Bool("json", false, "print the full result as JSON")
-	fs.Parse(args)
+	_ = fs.Parse(args) // ExitOnError: never returns an error
 	if *ip == "" {
 		fs.Usage()
 		return 1
@@ -119,7 +119,7 @@ func cmdAdapter(args []string) int {
 	fs := flag.NewFlagSet("adapter", flag.ExitOnError)
 	dev := fs.String("hci", "hci0", "HCI adapter name")
 	asJSON := fs.Bool("json", false, "print the full result as JSON")
-	fs.Parse(args)
+	_ = fs.Parse(args) // ExitOnError: never returns an error
 	info, err := wake.Inspect(*dev)
 	if err != nil {
 		return fail(err)
@@ -154,7 +154,7 @@ func cmdWake(ctx context.Context, args []string) int {
 	retryDelay := fs.Duration("retry-delay", 2*time.Second, "pause between attempts")
 	asJSON := fs.Bool("json", false, "print the full result as JSON")
 	quiet := fs.Bool("quiet", false, "suppress progress on stderr")
-	fs.Parse(args)
+	_ = fs.Parse(args) // ExitOnError: never returns an error
 	if *ctrlS == "" || *ps5S == "" {
 		fs.Usage()
 		return 1

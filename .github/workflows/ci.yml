@@ -1,0 +1,62 @@
+name: CI
+
+# gofmt, vet (host and GOOS=linux, for the raw-socket code behind the linux
+# build tag), tests, the two Linux builds the image ships, and golangci-lint,
+# on every push to main and milestone/* and on pull requests to main.
+on:
+  push:
+    branches:
+      - main
+      - 'milestone/**'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      # .gitattributes pins *.go to LF, so a CRLF checkout cannot make every
+      # file look unformatted.
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt -l reports unformatted files (run gofmt -w on them):"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build (linux/amd64, linux/arm64)
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /dev/null ./cmd/ps5ctl
+          GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o /dev/null ./cmd/ps5ctl
+
+      # The version is pinned: a new golangci-lint release can add checks, and
+      # that should be a deliberate bump, not a red CI run. Settings and
+      # exclusions are in .golangci.yml.
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.14.0

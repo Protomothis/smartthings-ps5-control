@@ -31,7 +31,7 @@ func cmdServe(ctx context.Context, args []string) int {
 	tlsHosts := fs.String("tls-hosts", envOr("PS5_TLS_HOSTS", ""), "extra comma-separated names/IPs for the self-signed cert (env PS5_TLS_HOSTS)")
 	authUser := fs.String("auth-user", envOr("PS5_AUTH_USER", ""), "basic auth user for the settings page (env PS5_AUTH_USER)")
 	authPass := fs.String("auth-pass", envOr("PS5_AUTH_PASS", ""), "basic auth password (env PS5_AUTH_PASS)")
-	fs.Parse(args)
+	_ = fs.Parse(args) // ExitOnError: never returns an error
 
 	if *httpAddr == "" && *httpsAddr == "" {
 		return fail(errors.New("nothing to listen on: set --http and/or --https"))

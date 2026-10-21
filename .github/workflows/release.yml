@@ -1,0 +1,106 @@
+name: Release
+
+# On a `vX.Y.Z` tag: test, build the linux/amd64 and linux/arm64 binaries,
+# push the multi-arch image to ghcr.io/<owner>/smartthings-ps5-control
+# (`vX.Y.Z` and, for a plain release, `latest`), and create the GitHub
+# Release with the tag's CHANGELOG.md section and the binaries attached.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      # A tag can sit on a commit CI never checked, so the release gates on
+      # vet/test itself.
+      - name: Vet and test
+        run: |
+          go vet ./...
+          go test ./...
+
+      - name: Build binaries
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          mkdir -p dist
+          for arch in amd64 arm64; do
+            GOOS=linux GOARCH=$arch go build -trimpath \
+              -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" \
+              -o "dist/ps5ctl-linux-$arch" ./cmd/ps5ctl
+          done
+          (cd dist && sha256sum ps5ctl-linux-* > SHA256SUMS)
+          ls -l dist
+
+      - name: Image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/smartthings-ps5-control" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # A tag with a suffix (v0.1.0-rc1) is a prerelease: it gets its own tag
+      # but never moves `latest`.
+      - name: Image tags
+        id: tags
+        run: |
+          tags="${{ steps.image.outputs.name }}:${GITHUB_REF_NAME}"
+          case "$GITHUB_REF_NAME" in
+            *-*) ;;
+            *) tags="$tags,${{ steps.image.outputs.name }}:latest" ;;
+          esac
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: VERSION=${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The body is the tag's CHANGELOG.md section only. An rc tag has no
+      # section of its own yet, so it gets [Unreleased].
+      - name: Extract release notes
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          section="$tag"
+          case "$tag" in *-*) section="Unreleased";; esac
+          awk -v v="$section" '
+            /^## \[/ { if (found) exit; if (index($0, "[" v "]") > 0) { found = 1; next } }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "_CHANGELOG.md has no [$section] section._" > release-notes.md
+          fi
+          printf '\n---\n이미지: `%s:%s`\n' "${{ steps.image.outputs.name }}" "$tag" >> release-notes.md
+          cat release-notes.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/ps5ctl-linux-amd64
+            dist/ps5ctl-linux-arm64
+            dist/SHA256SUMS
+          body_path: release-notes.md
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}

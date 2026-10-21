@@ -195,14 +195,22 @@ func TestAuth(t *testing.T) {
 	}
 	req, _ := http.NewRequest("GET", f.srv.URL+"/", nil)
 	req.SetBasicAuth("admin", "wrong")
-	res, _ := http.DefaultClient.Do(req)
-	if res.StatusCode != 401 || !strings.Contains(res.Header.Get("WWW-Authenticate"), "Basic") {
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusUnauthorized || !strings.Contains(res.Header.Get("WWW-Authenticate"), "Basic") {
 		t.Fatalf("wrong password = %d", res.StatusCode)
 	}
 	req.SetBasicAuth("admin", "secret")
-	res, _ = http.DefaultClient.Do(req)
+	res, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
 	body, _ := io.ReadAll(res.Body)
-	if res.StatusCode != 200 || !strings.Contains(string(body), "navigator.hid") {
+	res.Body.Close()
+	if res.StatusCode != http.StatusOK || !strings.Contains(string(body), "navigator.hid") {
 		t.Fatalf("page = %d %.80q", res.StatusCode, body)
 	}
 	// public routes never challenge
@@ -216,8 +224,12 @@ func TestAuthDisabled(t *testing.T) {
 	s := New(store, (&fakeDeps{}).deps(), Auth{}, "test", log.New(io.Discard, "", 0))
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
-	res, _ := http.Get(ts.URL + "/api/config")
-	if res.StatusCode != 503 {
+	res, err := http.Get(ts.URL + "/api/config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("code = %d", res.StatusCode)
 	}
 }
