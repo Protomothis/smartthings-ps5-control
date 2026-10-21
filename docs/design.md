@@ -82,6 +82,29 @@ defer: 원래 주소로 벤더 쓰기 (실패 시 로그 + Result.Restored=false
 - 검증: 유닛 테스트(httptest + 가짜 deps) 와 Windows 루프백에서 1회 수동 호출(401/200, 설정 저장, status off,
   wake 는 리눅스 아님 502). 실제 WebHID 읽기와 실기 wake 는 미검증
 
+### 5단계 Edge 드라이버 골격 (2026-10-21)
+
+smartthings-pc-control 의 `edge/` 에서 가져온 것: 테스트 러너(`tools/lua.js` fengari, `tests/run.lua`,
+`tests/syntax.lua`), 허브 모듈 mock(`tests/mocks/`), 주석 제거 패키저(`tools/build.js`), `.luacheckrc`,
+CI 흐름(node + C Lua 5.3 이중 실행, luacheck, `edge-v*` 태그 패키징). 가져오지 않은 것: 커스텀 capability,
+SSDP 검색, push 구독, 프로필 생성기, i18n — 이 드라이버는 표준 `switch`·`refresh` 만 쓰므로 필요 없다.
+
+- **검색은 장치를 그냥 만든다.** 서버가 SSDP 응답을 하지 않으므로 "주변 기기 검색" 때마다 `ps5-control-N` 장치
+  하나를 만들고 서버 주소는 환경설정으로 받는다. 서버가 여러 PS5 를 다루게 되면 그때 SSDP 를 붙인다.
+- **스위치 = 전원.** `on` 만 켜짐, `standby`·`off` 는 꺼짐. 휴식 모드를 구분해 보여 주려면 커스텀 capability 가
+  필요하고(네임스페이스 발급·허브 캐시 함정), v1 에서는 하지 않는다.
+- **켜기 = `POST /wake` 동기 호출.** 서버가 최대 ~30초 걸리므로 드라이버 쪽 luasocket TIMEOUT 을 60초로 둔다
+  (cosock 코루틴이라 다른 장치를 막지 않는다). 스위치는 즉시 `on` 으로 그리고, 200 이면 90초 동안 5초마다
+  `/status` 로 확인, 그래도 `on` 이 아니면 되돌린다. 504/5xx 면 바로 되돌린다. 423(진행 중)이면 그냥 따라간다.
+- **끄기는 무시**하고 현재 값을 `state_change = true` 로 다시 보내 토글을 되돌린다(앱은 이벤트가 와야 회전을
+  멈춘다 — 플랫폼 노트 "상세 화면").
+- **이벤트 예산**: 같은 값은 보내지 않고 10분에 한 번만 순환 재전송(`model.should_emit`). 장치당 줄이 하나라
+  pc-control 의 묶음 분할은 필요 없다.
+- **서버 불통과 PS5 꺼짐은 다르다.** HTTP 가 안 오면 `device:offline()`, 오면 `online()`. 스위치 값은 마지막
+  값을 유지한다.
+- 실측 대기: 허브에서 `GameConsole` 카테고리 아이콘, `device:online/offline` 표시, 60초 TIMEOUT 이 cosock
+  에서 실제로 먹는지, 깨우기 뒤 PS5 가 9302 에 답하기까지의 시간(90초 창의 근거).
+
 ## 초기 요구사항 (2026-10-21 원문)
 
 ### 목표

@@ -1,0 +1,14 @@
+{
+  "name": "smartthings-ps5-control-edge",
+  "private": true,
+  "description": "SmartThings Edge driver for PS5 Control (Lua 5.3)",
+  "scripts": {
+    "test": "node tools/lua.js tests/run.lua",
+    "syntax": "node tools/lua.js tests/syntax.lua",
+    "build": "node tools/build.js",
+    "test-build": "node tools/build.js --quiet && node tools/lua.js tests/run.lua --src build/edge/src"
+  },
+  "devDependencies": {
+    "fengari": "0.1.5"
+  }
+}

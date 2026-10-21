@@ -31,8 +31,8 @@
 - [x] 1. 상태 조회 CLI (`ps5ctl status`)
 - [x] 2. wake CLI (`ps5ctl adapter`, `ps5ctl wake`) — 실기 테스트 전
 - [x] 3. HTTP 서버 + 설정 페이지 (`ps5ctl serve`: basic auth, `/data/config.json`, WebHID 주소 추출, 자체서명 HTTPS)
-- [ ] 4. 최소 이미지 배포 (`ghcr.io`)
-- [ ] 5. 스마트싱스 Edge 드라이버 (Lua, cosock, 30~60초 폴링, switch capability, off 무시)
+- [x] 4. 최소 이미지 배포 — `v*` 태그에 `release.yml` 이 ghcr 이미지(amd64·arm64)와 바이너리를 올림. 첫 태그 전
+- [x] 5. 스마트싱스 Edge 드라이버 골격 — [edge/](edge/README.md): switch(켜기 = wake, 끄기 무시) · refresh, 30초 폴링. 허브 설치 전
 
 ### 가장 먼저 확인할 리스크
 
@@ -97,6 +97,12 @@ feature report `0x09` (20 바이트) 를 읽어 1~6 바이트의 컨트롤러 �
 
 듀얼센스 엣지(0x0DF2)·듀얼쇼크4(report `0x12`) 도 같은 오프셋으로 읽는다.
 PS5 주소가 `00:00:00:00:00:00` 이면 아직 PS5 와 블루투스로 페어링된 적이 없는 컨트롤러다.
+
+## 개발
+
+브랜치·커밋·테스트·릴리스 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md), 변경 이력은 [CHANGELOG.md](CHANGELOG.md)(서버)와
+[edge/CHANGELOG.md](edge/CHANGELOG.md)(드라이버). CI 는 Go(`ci.yml`)와 드라이버(`edge.yml`)가 따로 돌고,
+`v*` 태그는 `release.yml` 이 이미지와 바이너리를, `edge-v*` 태그는 `edge.yml` 이 드라이버 패키지를 낸다.
 
 ## 참고 구현
 

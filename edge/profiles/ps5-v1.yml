@@ -1,0 +1,46 @@
+# Device screen for a PS5 behind the ps5-control service. Standard capabilities
+# only: the switch is the console's power (on = on, off = rest mode or off), the
+# refresh button polls now. The screen a device gets is frozen at creation, so
+# a change here is a new file and name (ps5-v2.yml / ps5.v2), never an edit.
+name: ps5.v1
+components:
+  - id: main
+    capabilities:
+      - id: switch
+        version: 1
+      - id: refresh
+        version: 1
+    categories:
+      - name: GameConsole
+preferences:
+  - name: serverAddress
+    title: 서버 주소 (Server address)
+    description: "ps5-control 컨테이너가 도는 홈서버의 IPv4 주소(예: 192.168.1.50). / IPv4 address of the home server running ps5-control."
+    required: true
+    preferenceType: string
+    definition:
+      stringType: text
+      minLength: 0
+      maxLength: 45
+      default: ""
+  - name: serverPort
+    title: 서버 포트 (Server port)
+    description: "ps5-control 의 HTTP 포트(기본 8580). HTTPS 포트가 아닙니다. / Plain HTTP port of ps5-control (default 8580), not the HTTPS one."
+    required: false
+    preferenceType: integer
+    definition:
+      minimum: 1
+      maximum: 65535
+      default: 8580
+  - name: pollInterval
+    title: 상태 확인 주기 (Poll interval)
+    description: "드라이버가 서버에 PS5 상태를 묻는 주기. / How often the driver asks the server for the PS5 state."
+    required: true
+    preferenceType: enumeration
+    definition:
+      options:
+        "10": 10초마다 (10 s)
+        "30": 30초마다 (30 s)
+        "60": 1분마다 (1 min)
+        "300": 5분마다 (5 min)
+      default: "30"

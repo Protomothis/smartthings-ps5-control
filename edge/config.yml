@@ -1,0 +1,11 @@
+name: SmartThings PS5 Control
+packageKey: smartthings-ps5-control-driver
+description: Shows whether a PS5 is on, in rest mode or off, and wakes it over Bluetooth through the ps5-control service on the home server.
+vendorSupportInformation: https://github.com/Protomothis/smartthings-ps5-control
+permissions:
+  lan: {}
+  # discovery: without this the hub never invokes the driver for "Scan nearby"
+  # while it has no devices (smartthings-pc-control, 2026-09-22).
+  discovery: {}
+# There is no standard `version` field here; the driver version lives in
+# src/driver_version.lua and is checked against the `edge-vX.Y.Z` tag in CI.
