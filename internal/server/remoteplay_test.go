@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/protomothis/smartthings-ps5-control/internal/config"
 	"github.com/protomothis/smartthings-ps5-control/internal/discovery"
+	"github.com/protomothis/smartthings-ps5-control/internal/logx"
 	"github.com/protomothis/smartthings-ps5-control/internal/wake"
 )
 
@@ -105,7 +107,7 @@ func rpFixture(t *testing.T, registered bool, states ...discovery.State) (*httpt
 		return "ywT7cR8BAAA=", nil
 	}
 	deps.LoginURL = "https://example.invalid/login"
-	s := New(store, deps, Auth{User: "admin", Pass: "secret"}, "test", log.New(io.Discard, "", 0))
+	s := New(store, deps, Auth{User: "admin", Pass: "secret"}, "test", slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 	s.timing = timing{pollInterval: 10 * time.Millisecond, networkWakeTimeout: 200 * time.Millisecond, standbyTimeout: 200 * time.Millisecond}
 	ts := httptest.NewServer(s.Handler())
 	t.Cleanup(ts.Close)
@@ -309,6 +311,47 @@ func TestRegisterFlowAndRedaction(t *testing.T) {
 	}
 }
 
+func TestLogsRoute(t *testing.T) {
+	store, _ := config.Open(t.TempDir())
+	hub := logx.New(logx.Options{RingSize: 50})
+	s := New(store, (&fakeDeps{}).deps(), Auth{User: "admin", Pass: "secret"}, "test", hub.Logger(), hub)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+	if code, _ := call(t, ts, "GET", "/api/logs", "", nil, false); code != 401 {
+		t.Fatalf("logs without auth = %d", code)
+	}
+	// a rejected request leaves a WARN line behind
+	call(t, ts, "POST", "/wake", "", nil, false)
+	code, m := call(t, ts, "GET", "/api/logs", "", nil, true)
+	if code != 200 {
+		t.Fatalf("logs = %d %v", code, m)
+	}
+	entries := m["entries"].([]any)
+	if len(entries) == 0 {
+		t.Fatal("no entries")
+	}
+	last := entries[len(entries)-1].(map[string]any)
+	if last["level"] != "WARN" || last["component"] != "http" || last["message"] != "request rejected" {
+		t.Fatalf("last entry = %v", last)
+	}
+	next := m["next"].(float64)
+	code, m = call(t, ts, "GET", "/api/logs?after="+strconv.Itoa(int(next)), "", nil, true)
+	if code != 200 || len(m["entries"].([]any)) != 0 {
+		t.Fatalf("after=next should be empty: %d %v", code, m)
+	}
+	// no file configured: download is 503
+	if code, _ := call(t, ts, "GET", "/api/logs/download", "", nil, true); code != 503 {
+		t.Fatalf("download without file = %d", code)
+	}
+	// no hub at all: 503
+	s2 := New(store, (&fakeDeps{}).deps(), Auth{User: "admin", Pass: "secret"}, "test", nil, nil)
+	ts2 := httptest.NewServer(s2.Handler())
+	defer ts2.Close()
+	if code, _ := call(t, ts2, "GET", "/api/logs", "", nil, true); code != 503 {
+		t.Fatalf("logs without hub = %d", code)
+	}
+}
+
 func TestRemotePlayUnavailable(t *testing.T) {
 	store, _ := config.Open(t.TempDir())
 	c := store.Get()
@@ -316,7 +359,7 @@ func TestRemotePlayUnavailable(t *testing.T) {
 	_ = store.Set(c)
 	_ = store.SetRemotePlay(&config.RemotePlay{RegistKey: "x", RPKey: "y"})
 	fd := &fakeDeps{status: discovery.Status{State: discovery.StateOn}}
-	s := New(store, fd.deps(), Auth{User: "admin", Pass: "secret"}, "test", log.New(io.Discard, "", 0))
+	s := New(store, fd.deps(), Auth{User: "admin", Pass: "secret"}, "test", slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
 	if code, _ := call(t, ts, "POST", "/standby", "", nil, false); code != 501 {

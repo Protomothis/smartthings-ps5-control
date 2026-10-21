@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -133,16 +134,16 @@ func (s *Server) handleWake(w http.ResponseWriter, r *http.Request) {
 	var netErr error
 	canNetwork := method != "bluetooth" && c.RemotePlayReady() == nil && s.deps.RemotePlay != nil
 	if canNetwork && (state == discovery.StateStandby || method == "network") {
-		s.log.Printf("wake: network wake (state %s)", state)
+		s.logc("wake").Info("network wake", "state", string(state))
 		if err := s.deps.RemotePlay(c.PS5IP).Wake(ctx, *c.RemotePlay); err != nil {
 			netErr = err
-			s.log.Printf("wake: network wake failed: %v", err)
+			s.logc("wake").Warn("network wake failed", "err", err.Error())
 		} else if st, ok := s.waitForState(ctx, c, s.timing.networkWakeTimeout, discovery.StateOn); ok {
 			writeJSON(w, http.StatusOK, wakeResponse{Method: "network", State: st, Outcome: wake.OutcomeSuccess})
 			return
 		} else {
 			netErr = errors.New("console did not answer discovery after the network wake")
-			s.log.Printf("wake: %v (last state %s)", netErr, st)
+			s.logc("wake").Warn(netErr.Error(), "last_state", string(st))
 		}
 	}
 	if method == "network" {
@@ -163,7 +164,7 @@ func (s *Server) handleWake(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusConflict, wakeResponse{Method: "bluetooth", State: state, Outcome: wake.OutcomeError, Error: err.Error()})
 		return
 	}
-	s.log.Printf("wake: bluetooth wake (state %s)", state)
+	s.logc("wake").Info("bluetooth wake", "state", string(state))
 	res, err := s.deps.Wake(ctx, wake.Options{
 		Adapter:    c.HCI,
 		Controller: c.ControllerAddr,
@@ -171,7 +172,7 @@ func (s *Server) handleWake(w http.ResponseWriter, r *http.Request) {
 		Timeout:    c.WakeTimeout(),
 		Attempts:   c.WakeAttempts,
 		RetryDelay: c.WakeRetryDelay(),
-		Log:        func(f string, a ...any) { s.log.Printf("wake: "+f, a...) },
+		Log:        func(f string, a ...any) { s.logc("wake").Info(fmt.Sprintf(f, a...)) },
 	})
 	rec := &wakeRecord{At: time.Now(), Result: res}
 	if err != nil {
@@ -236,9 +237,9 @@ func (s *Server) handleStandby(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, standbyResponse{State: st.State, Outcome: wake.OutcomeSuccess})
 		return
 	}
-	s.log.Printf("standby: opening remote play session")
+	s.logc("standby").Info("opening remote play session")
 	if err := s.deps.RemotePlay(c.PS5IP).Standby(ctx, *c.RemotePlay); err != nil {
-		s.log.Printf("standby: %v", err)
+		s.logc("standby").Warn("standby failed", "err", err.Error())
 		writeJSON(w, http.StatusBadGateway, standbyResponse{State: st.State, Outcome: wake.OutcomeError, Error: err.Error()})
 		return
 	}
@@ -342,7 +343,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	rp, err := s.deps.RemotePlay(c.PS5IP).Register(ctx, strings.TrimSpace(in.AccountID), strings.TrimSpace(in.PIN))
 	if err != nil {
-		s.log.Printf("remote play registration failed: %v", err)
+		s.logc("remoteplay").Warn("registration failed", "err", err.Error())
 		writeError(w, http.StatusBadGateway, err)
 		return
 	}
@@ -350,7 +351,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	s.log.Printf("remote play registered with %q (%s)", rp.Nickname, rp.Mac)
+	s.logc("remoteplay").Info("registered", "nickname", rp.Nickname, "mac", rp.Mac)
 	writeJSON(w, http.StatusOK, s.remotePlayView())
 }
 
@@ -359,6 +360,6 @@ func (s *Server) handleUnregister(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	s.log.Printf("remote play registration removed")
+	s.logc("remoteplay").Info("registration removed")
 	writeJSON(w, http.StatusOK, s.remotePlayView())
 }

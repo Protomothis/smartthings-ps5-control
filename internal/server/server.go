@@ -17,14 +17,16 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/protomothis/smartthings-ps5-control/internal/config"
 	"github.com/protomothis/smartthings-ps5-control/internal/discovery"
 	"github.com/protomothis/smartthings-ps5-control/internal/hci"
+	"github.com/protomothis/smartthings-ps5-control/internal/logx"
 	"github.com/protomothis/smartthings-ps5-control/internal/spoof"
 	"github.com/protomothis/smartthings-ps5-control/internal/wake"
 )
@@ -60,7 +62,8 @@ type Server struct {
 	cfg     *config.Store
 	deps    Deps
 	auth    Auth
-	log     *log.Logger
+	log     *slog.Logger
+	hub     *logx.Hub
 	version string
 
 	wakeMu  sync.Mutex
@@ -75,12 +78,12 @@ type wakeRecord struct {
 	Error  string      `json:"error,omitempty"`
 }
 
-// New builds a Server. logger may be nil.
-func New(cfg *config.Store, deps Deps, auth Auth, version string, logger *log.Logger) *Server {
+// New builds a Server. logger may be nil; hub (optional) backs GET /api/logs.
+func New(cfg *config.Store, deps Deps, auth Auth, version string, logger *slog.Logger, hub *logx.Hub) *Server {
 	if logger == nil {
-		logger = log.Default()
+		logger = slog.Default()
 	}
-	return &Server{cfg: cfg, deps: deps, auth: auth, log: logger, version: version, timing: defaultTiming()}
+	return &Server{cfg: cfg, deps: deps, auth: auth, log: logger, hub: hub, version: version, timing: defaultTiming()}
 }
 
 // Handler returns the routed http.Handler.
@@ -113,6 +116,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/config", s.auth.Wrap(http.HandlerFunc(s.handleGetConfig)))
 	mux.Handle("PUT /api/config", s.auth.Wrap(http.HandlerFunc(s.handlePutConfig)))
 	mux.Handle("GET /api/info", s.auth.Wrap(http.HandlerFunc(s.handleInfo)))
+	mux.Handle("GET /api/logs", s.auth.Wrap(http.HandlerFunc(s.handleLogs)))
+	mux.Handle("GET /api/logs/download", s.auth.Wrap(http.HandlerFunc(s.handleLogsDownload)))
 	return s.logging(mux)
 }
 
@@ -121,8 +126,8 @@ func (s *Server) logging(next http.Handler) http.Handler {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, code: http.StatusOK}
 		next.ServeHTTP(rec, r)
-		if r.URL.Path != "/healthz" {
-			s.log.Printf("%s %s %d %s %s", r.Method, r.URL.Path, rec.code, time.Since(start).Round(time.Millisecond), r.RemoteAddr)
+		if r.URL.Path != "/healthz" && !strings.HasPrefix(r.URL.Path, "/api/logs") {
+			s.accessLog(r, rec.code, time.Since(start))
 		}
 	})
 }
@@ -223,7 +228,7 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	s.log.Printf("config saved: ps5=%s ctrl=%s ps5bt=%s hci=%s secret=%v", c.PS5IP, c.ControllerAddr, c.PS5Addr, c.HCI, c.APISecret != "")
+	s.logc("config").Info("settings saved", "ps5_ip", c.PS5IP, "controller", c.ControllerAddr.String(), "ps5_bt", c.PS5Addr.String(), "hci", c.HCI, "secret_set", c.APISecret != "")
 	writeJSON(w, http.StatusOK, s.cfg.Get().Redacted())
 }
 

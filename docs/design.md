@@ -134,6 +134,19 @@ SSDP 검색, push 구독, 프로필 생성기, i18n — 이 드라이버는 표�
 - 실측 대기: 등록 검색(UDP 9295 바인드)이 호스트 네트워크 컨테이너에서 되는지, 세션 `ctrl` 응답 뒤 패킷 스트림,
   PIN 등록 뒤 PS5 가 보이는 닉네임, 휴식 모드 전환까지 걸리는 시간, 로그인 비밀번호 사용자의 `ErrPasscode`.
 
+### 로깅 (2026-10-21)
+
+- `internal/logx`: `log/slog` 핸들러 하나가 stderr(컨테이너 로그) · 회전 파일 · 메모리 링(500줄)에 같은 줄을 쓴다.
+  줄 형식 `2026-10-21 15:04:05.123 INFO  wake: message key=value`. `component` 속성이 접두어.
+- 회전: `/data/logs/ps5ctl.log` 1 MiB 를 넘기 전에 `.1`·`.2` 로 밀고 셋만 남긴다(최대 3 MiB). 한 줄이 상한보다
+  커도 통째로 쓴다. 재시작 시 기존 파일 크기를 이어 센다.
+- 레벨: 기본 INFO. HTTP 접근 로그는 DEBUG(5xx 는 ERROR, 401 뺀 4xx 는 WARN)라 드라이버의 30초 폴링이 파일을
+  채우지 않는다. `PS5_LOG_LEVEL=debug` 로 켠다. `/api/logs*` 요청 자체는 접근 로그에서 뺀다(패널 폴링).
+- 페이지: `GET /api/logs?after=<seq>&limit=` 로 링에서 증분 수신(3초), 레벨 필터는 클라이언트에서, 다운로드는
+  `GET /api/logs/download`(회전분 오래된 순 + 현재). 둘 다 basic auth.
+- 구성요소: server, http, config, wake, standby, remoteplay. wake 패키지의 `Log func` 콜백은 그대로 두고 서버가
+  component=wake 로 감싼다(패키지는 slog 를 모른다).
+
 ## 초기 요구사항 (2026-10-21 원문)
 
 ### 목표

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -75,7 +75,7 @@ func newFixture(t *testing.T, configured bool) *fixture {
 		}
 	}
 	fd := &fakeDeps{status: discovery.Status{State: discovery.StateStandby, Code: 620, Fields: map[string]string{"host-type": "PS5"}}}
-	s := New(store, fd.deps(), Auth{User: "admin", Pass: "secret"}, "test", log.New(io.Discard, "", 0))
+	s := New(store, fd.deps(), Auth{User: "admin", Pass: "secret"}, "test", slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 	ts := httptest.NewServer(s.Handler())
 	t.Cleanup(ts.Close)
 	return &fixture{srv: ts, store: store, deps: fd}
@@ -221,7 +221,7 @@ func TestAuth(t *testing.T) {
 
 func TestAuthDisabled(t *testing.T) {
 	store, _ := config.Open(t.TempDir())
-	s := New(store, (&fakeDeps{}).deps(), Auth{}, "test", log.New(io.Discard, "", 0))
+	s := New(store, (&fakeDeps{}).deps(), Auth{}, "test", slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
 	res, err := http.Get(ts.URL + "/api/config")

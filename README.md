@@ -69,7 +69,7 @@ BD_ADDR 변경은 표준 HCI 명령이 없어 칩셋별 벤더 명령을 씁니�
 | `https://<서버>:8543/` | 설정 페이지 (`/api/config`, `/api/info`, `/api/remoteplay*` 포함) | basic auth |
 | `/api/adapter`, `/healthz` | 동글 정보, 헬스체크 | 없음 |
 
-환경변수: `PS5_AUTH_USER` · `PS5_AUTH_PASS`(없으면 설정 페이지가 503 으로 닫힘), `PS5_HTTP_ADDR`(`:8580`), `PS5_HTTPS_ADDR`(`:8543`), `PS5_TLS_HOSTS`, `PS5_DATA`(`/data`).
+환경변수: `PS5_AUTH_USER` · `PS5_AUTH_PASS`(없으면 설정 페이지가 503 으로 닫힘), `PS5_HTTP_ADDR`(`:8580`), `PS5_HTTPS_ADDR`(`:8543`), `PS5_TLS_HOSTS`, `PS5_DATA`(`/data`), `PS5_LOG_LEVEL`(`info`; `debug` 면 HTTP 요청까지).
 
 ### 문제 해결
 
@@ -80,7 +80,7 @@ BD_ADDR 변경은 표준 HCI 명령이 없어 칩셋별 벤더 명령을 씁니�
 - **휴식 모드인데 `off`** — PS5 설정 → 시스템 → 절전 → 휴식 모드 중 사용 가능한 기능 → "인터넷에 연결된 상태 유지".
 - **Remote Play 등록이 안 됨** — PS5 의 "리모트 플레이 활성화" 가 켜져 있고 기기 연결 화면이 열려 있어야 하며, 서버와 PS5 가 같은 서브넷이어야 합니다(등록 검색은 UDP 9295 를 씁니다). `80108b09` 는 PIN 오류, `80108b02` 는 계정 ID 오류입니다.
 - **휴식 모드 전환이 `passcode`** — PS5 사용자에 로그인 비밀번호가 걸려 있으면 세션을 열 수 없습니다. 비밀번호를 풀거나 비밀번호 없는 사용자로 등록하세요.
-- **로그** — `docker compose logs -f ps5`. 깨우기 한 번의 전 과정(칩셋, 원래 주소, 시도마다의 상태 코드, 원복)이 남습니다.
+- **로그** — 설정 페이지의 로그 패널(레벨 필터 · 파일 다운로드), `docker compose logs -f ps5`, 또는 `data/logs/ps5ctl.log`(1 MB × 3개 회전). 깨우기 한 번의 전 과정(경로 선택, 칩셋, 원래 주소, 시도마다의 상태 코드, 원복)이 `wake:` 줄로 남습니다. `PS5_LOG_LEVEL=debug` 로 모든 HTTP 요청을 포함할 수 있습니다.
 
 ### 보안
 
