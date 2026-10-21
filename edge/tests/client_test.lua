@@ -75,9 +75,9 @@ function T.test_transport_failure_is_unreachable()
 
   local deps = h.deps(nil)
   deps.http = function() error("socket exploded") end
-  ok, _, kind = client.get_status(h.device(), deps)
-  h.assert_false(ok)
-  h.assert_equal(kind, "unreachable")
+  local ok2, _, kind2 = client.get_status(h.device(), deps)
+  h.assert_false(ok2)
+  h.assert_equal(kind2, "unreachable")
 end
 
 function T.test_empty_address_is_unconfigured_without_a_request()

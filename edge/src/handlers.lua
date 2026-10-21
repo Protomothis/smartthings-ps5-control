@@ -68,7 +68,7 @@ function handlers.init(driver, device, _event, deps)
   poll.once(driver, device, deps)
 end
 
-function handlers.added(driver, device, _event, deps)
+function handlers.added(_driver, device, _event, deps)
   log.info("added " .. device.id)
   -- Paint the tile now; the first poll fills in the real value.
   poll.emit_switch(device, "off", true, deps)
