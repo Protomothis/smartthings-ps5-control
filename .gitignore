@@ -1,0 +1,17 @@
+# build output
+/ps5ctl
+/ps5ctl.exe
+/dist/
+*.exe
+
+# runtime data (config volume)
+/data/
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code agent worktrees
+.claude/worktrees/
