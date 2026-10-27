@@ -3,7 +3,6 @@
 package hci
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"time"
@@ -53,14 +52,8 @@ func Open(dev int, timeout time.Duration) (Transport, error) {
 		}
 		return nil, fmt.Errorf("hci: bind hci%d: %w", dev, err)
 	}
-	// struct hci_filter { u32 type_mask; u32 event_mask[2]; u16 opcode; }
-	// Without a filter the kernel delivers nothing. event_mask covers codes
-	// 0..63 only, so vendor events (0xFF) can never be received here.
-	var filt [14]byte
-	binary.LittleEndian.PutUint32(filt[0:], 1<<PktEvent)
-	binary.LittleEndian.PutUint32(filt[4:], 0xFFFFFFFF)
-	binary.LittleEndian.PutUint32(filt[8:], 0xFFFFFFFF)
-	if err := unix.SetsockoptString(fd, solHCI, hciFilter, string(filt[:])); err != nil {
+	// Without a filter the kernel delivers nothing.
+	if err := unix.SetsockoptString(fd, solHCI, hciFilter, string(EventFilter())); err != nil {
 		c.Close()
 		return nil, fmt.Errorf("hci: set filter on hci%d: %w", dev, err)
 	}
