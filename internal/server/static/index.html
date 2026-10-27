@@ -3,348 +3,837 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PS5 전원 제어 설정</title>
+<title>PS5 전원 제어</title>
 <style>
   :root {
-    --bg: #f4f5f7; --card: #ffffff; --text: #191f28; --muted: #6b7684; --line: #e5e8eb;
-    --accent: #3182f6; --accent-text: #ffffff; --ok: #1b9c5a; --warn: #d9480f; --err: #e5484d;
-    --field: #f9fafb; --focus: rgba(49,130,246,.25);
+    --bg: #f2f4f6; --card: #ffffff; --card-2: #f9fafb; --text: #191f28; --text-2: #4e5968; --muted: #8b95a1;
+    --line: #e5e8eb; --line-2: #d1d6db;
+    --accent: #3182f6; --accent-hover: #1b64da; --accent-soft: #e8f3ff; --on-accent: #ffffff;
+    --ok: #12a05c; --ok-soft: #e5f7ed; --warn: #e07a00; --warn-soft: #fff4e2; --err: #e5484d; --err-soft: #ffebec;
+    --focus: rgba(49,130,246,.28); --shadow: 0 1px 2px rgba(0,23,51,.04), 0 6px 24px rgba(0,23,51,.05);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #101418; --card: #191f27; --text: #e8ecf1; --muted: #8b95a1; --line: #2a323c;
-      --accent: #4e8ff7; --field: #121820; --focus: rgba(78,143,247,.35);
+      --bg: #0f1216; --card: #181c22; --card-2: #1f242b; --text: #e9edf2; --text-2: #b0b8c1; --muted: #7d8794;
+      --line: #2a3038; --line-2: #353c46;
+      --accent: #4f93ff; --accent-hover: #6ea6ff; --accent-soft: #1a2a40;
+      --ok: #3ccf8a; --ok-soft: #14302a; --warn: #ffab40; --warn-soft: #362816; --err: #ff6b6f; --err-soft: #3a1c1f;
+      --focus: rgba(79,147,255,.35); --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 28px rgba(0,0,0,.25);
     }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
-  main { max-width: 680px; margin: 0 auto; padding: 24px 16px 48px; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  .sub { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
-  section { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 18px 16px; margin-bottom: 14px; }
-  h2 { font-size: 16px; margin: 0 0 12px; }
-  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
-  input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); color: var(--text); font: inherit; font-variant-numeric: tabular-nums; }
-  input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus); }
-  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
-  @media (max-width: 480px) { .row { grid-template-columns: 1fr; } }
-  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-  button { padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
-  button.primary { background: var(--accent); color: var(--accent-text); border-color: transparent; }
-  button:disabled { opacity: .5; cursor: default; }
-  .state { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; }
-  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); flex: none; }
-  .dot.on { background: var(--ok); } .dot.standby { background: var(--warn); } .dot.off { background: var(--err); }
-  .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
-  pre { margin: 10px 0 0; padding: 10px 12px; background: var(--field); border: 1px solid var(--line); border-radius: 10px; font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow: auto; }
-  .msg { margin-top: 10px; font-size: 14px; } .msg.ok { color: var(--ok); } .msg.err { color: var(--err); } .msg.warn { color: var(--warn); }
-  .hint { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
-  .logbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
-  .logbar select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); color: var(--text); font: inherit; }
-  .logbar label.inline { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 14px; color: var(--text); }
-  .log { font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+    word-break: keep-all; overflow-wrap: anywhere;
+  }
+  main { max-width: 1240px; margin: 0 auto; padding: 28px 24px 120px; }
+  @media (max-width: 640px) { main { padding: 20px 16px 110px; } }
+
+  /* layout: one column on narrow screens (in reading order), two side by
+     side from 980px; the log spans both. Columns stack independently, so
+     opening a panel never leaves a hole in the other column. */
+  .layout { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .col { display: contents; }
+  .hero { order: 1; } #p-basic { order: 2; } #p-bt { order: 3; } #p-rp { order: 4; } #p-adv { order: 5; } .wide { order: 6; }
+  @media (min-width: 980px) {
+    .layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+    .col { display: grid; gap: 16px; align-content: start; }
+    .wide { grid-column: 1 / -1; }
+  }
+  @media (min-width: 1280px) { .layout { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); } }
+  svg { display: block; flex: none; }
+  .mono { font-family: var(--mono); font-size: .92em; letter-spacing: -.01em; }
+
+  /* header */
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+  .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .logo { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); }
+  .brand h1 { font-size: 19px; line-height: 1.25; margin: 0; letter-spacing: -.02em; }
+  .brand p { margin: 0; color: var(--muted); font-size: 13px; }
+  .ver { color: var(--muted); font-size: 12px; white-space: nowrap; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; background: var(--card); }
+
+  /* cards */
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); }
+  .hero { padding: 20px; }
+  .hero-top { display: flex; align-items: center; gap: 16px; }
+  .orb { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--muted); background: var(--card-2); border: 1px solid var(--line); transition: background .25s, color .25s; }
+  .orb[data-state="on"] { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
+  .orb[data-state="standby"] { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
+  .orb[data-state="off"] { color: var(--muted); }
+  .orb[data-state="error"] { color: var(--err); background: var(--err-soft); border-color: transparent; }
+  .orb.pulse { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 8px var(--focus); } }
+  .hero-text { flex: 1; min-width: 0; }
+  .eyebrow { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .04em; }
+  .state { font-size: 24px; font-weight: 750; letter-spacing: -.03em; line-height: 1.25; }
+  .meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .meta span + span::before { content: "·"; margin: 0 6px; opacity: .7; }
+  .hero-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+  .hero-note { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
+
+  /* buttons */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--card); color: var(--text); font: inherit; font-weight: 650; white-space: nowrap; cursor: pointer; transition: background .15s, border-color .15s, transform .05s; }
+  .btn:hover { background: var(--card-2); }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: var(--accent); border-color: transparent; color: var(--on-accent); }
+  .btn.primary:hover { background: var(--accent-hover); }
+  .btn.danger { color: var(--err); }
+  .btn.danger.solid { background: var(--err); color: #fff; border-color: transparent; }
+  .btn.small { min-height: 36px; padding: 0 12px; font-size: 14px; border-radius: 10px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+  .btn:focus-visible, .icon-btn:focus-visible, summary:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
+  .icon-btn { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; border: 1px solid var(--line); background: var(--card); color: var(--text-2); cursor: pointer; flex: none; }
+  .icon-btn:hover { background: var(--card-2); }
+  .icon-btn.spin svg { animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+  /* result */
+  .result { display: flex; gap: 12px; align-items: flex-start; margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: var(--card-2); border: 1px solid var(--line); animation: rise .18s ease-out; }
+  @keyframes rise { from { transform: translateY(4px); } }
+  .result .r-icon { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; flex: none; color: #fff; background: var(--muted); margin-top: 1px; }
+  .result.ok .r-icon { background: var(--ok); } .result.warn .r-icon { background: var(--warn); } .result.err .r-icon { background: var(--err); }
+  .result.busy .r-icon { background: transparent; color: var(--accent); }
+  .result.busy .r-icon svg { animation: spin .9s linear infinite; }
+  .result.ok { background: var(--ok-soft); border-color: transparent; }
+  .result.warn { background: var(--warn-soft); border-color: transparent; }
+  .result.err { background: var(--err-soft); border-color: transparent; }
+  .r-body { flex: 1; min-width: 0; }
+  .r-title { font-weight: 700; }
+  .r-text { color: var(--text-2); font-size: 14px; margin-top: 1px; }
+  .r-detail { color: var(--muted); font: 12px/1.5 var(--mono); margin-top: 6px; }
+  .facts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .fact { display: inline-flex; gap: 6px; align-items: baseline; padding: 3px 9px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-size: 12.5px; white-space: nowrap; }
+  .fact b { font-weight: 600; color: var(--muted); }
+  .r-close { border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 2px; border-radius: 6px; flex: none; }
+  .r-close:hover { color: var(--text); }
+
+  /* panels */
+  details.panel { background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; }
+  details.panel > summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 16px 18px; cursor: pointer; user-select: none; }
+  details.panel > summary::-webkit-details-marker { display: none; }
+  details.panel > summary:hover { background: var(--card-2); }
+  .p-icon { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); flex: none; }
+  .p-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .p-title strong { font-size: 16px; letter-spacing: -.01em; }
+  .p-title small { color: var(--muted); font-size: 13px; }
+  .chev { color: var(--muted); transition: transform .2s; }
+  details[open] > summary .chev { transform: rotate(180deg); }
+  .p-body { padding: 4px 18px 18px; border-top: 1px solid var(--line); }
+
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 650; white-space: nowrap; background: var(--card-2); color: var(--text-2); border: 1px solid var(--line); }
+  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .85; }
+  .badge.plain::before { display: none; }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+  .badge.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+  .badge.err { background: var(--err-soft); color: var(--err); border-color: transparent; }
+  @media (max-width: 520px) { summary .badge { display: none; } }
+
+  /* fields */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 4px 14px; }
+  .field { margin-top: 14px; min-width: 0; }
+  .field label { display: block; font-size: 13.5px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+  .help { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+  input[type=text], input[type=password], input[type=number], input:not([type]), select {
+    width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--line-2); border-radius: 12px;
+    background: var(--card-2); color: var(--text); font: inherit; font-variant-numeric: tabular-nums;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+  }
+  input::placeholder { color: var(--muted); opacity: .8; }
+  input.mono:placeholder-shown:not(.addr) { font-family: inherit; }
+  input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus); background: var(--card); }
+  input.mono { font-family: var(--mono); }
+  input.invalid { border-color: var(--err); }
+  .suffix { position: relative; }
+  .suffix input { padding-right: 52px; }
+  .suffix .unit { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px; pointer-events: none; }
+  .suffix .peek { position: absolute; right: 4px; top: 4px; width: 36px; height: 36px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
+  .suffix .peek:hover { color: var(--text); background: var(--line); }
+
+  .sub-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 16px; }
+  .sub-grid .sub-card { margin-top: 0; display: flex; flex-direction: column; }
+  .ctl-row { display: flex; gap: 8px; margin-top: auto; padding-top: 12px; }
+  .ctl-row input { height: 36px; border-radius: 10px; flex: 1; min-width: 0; max-width: 160px; }
+  .sub-card { margin-top: 16px; padding: 14px; border-radius: 14px; background: var(--card-2); border: 1px solid var(--line); min-width: 0; }
+  .sub-card h3 { margin: 0; font-size: 14.5px; }
+  .sub-card .help { margin-top: 4px; }
+  .sub-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 14px 0 0; font-size: 14px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; min-width: 0; }
+
+  .steps { margin: 12px 0 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 8px; }
+  .steps li { counter-increment: s; display: flex; gap: 10px; font-size: 14px; color: var(--text-2); }
+  .steps li::before { content: counter(s); width: 22px; height: 22px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--accent-soft); color: var(--accent); margin-top: 1px; }
+
+  .lock-head { display: flex; align-items: center; gap: 12px; }
+  .lock-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--ok-soft); color: var(--ok); flex: none; }
+  .lock-head .t { flex: 1; min-width: 0; }
+  .lock-head strong { display: block; font-size: 15.5px; }
+  .lock-head span { color: var(--muted); font-size: 13px; }
+  .confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; padding: 10px 12px; border-radius: 12px; background: var(--err-soft); color: var(--err); font-size: 14px; font-weight: 600; }
+  .confirm span { flex: 1 1 200px; }
+
+  .notice { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: var(--warn-soft); color: var(--warn); font-size: 14px; }
+
+  /* logs */
+  .logbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+  .logbar select { width: auto; height: 36px; border-radius: 10px; padding: 0 10px; font-size: 14px; }
+  .switch { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-2); cursor: pointer; margin-right: auto; }
+  .switch input { appearance: none; width: 36px; height: 22px; border-radius: 999px; background: var(--line-2); position: relative; cursor: pointer; margin: 0; transition: background .15s; }
+  .switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+  .switch input:checked { background: var(--accent); }
+  .switch input:checked::after { transform: translateX(14px); }
+  .log { margin-top: 10px; font: 12px/1.6 var(--mono); background: var(--card-2); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; height: 320px; overflow: auto; word-break: break-all; }
+  .log:empty::before { content: "아직 로그가 없습니다."; color: var(--muted); }
   .log .ln { display: flex; gap: 8px; }
   .log .t { color: var(--muted); flex: none; }
-  .log .lv { flex: none; width: 46px; font-weight: 700; }
+  .log .lv { flex: none; width: 42px; font-weight: 700; }
   .log .lv.INFO { color: var(--accent); } .log .lv.WARN { color: var(--warn); } .log .lv.ERROR { color: var(--err); } .log .lv.DEBUG { color: var(--muted); }
   .log .c { color: var(--ok); flex: none; }
   .log .a { color: var(--muted); }
-  code { font-size: 13px; background: var(--field); padding: 1px 5px; border-radius: 5px; }
+
+  /* save bar + toast */
+  .savebar { position: fixed; left: 50%; bottom: 20px; transform: translate(-50%, 16px); opacity: 0; pointer-events: none; width: min(560px, calc(100% - 32px)); display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 18px; border-radius: 16px; background: var(--text); color: var(--bg); box-shadow: 0 10px 40px rgba(0,0,0,.25); transition: opacity .2s, transform .2s; z-index: 10; }
+  .savebar.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  .savebar span { flex: 1; font-weight: 600; font-size: 14px; }
+  .savebar .btn { min-height: 38px; border-radius: 10px; }
+  .savebar .btn.ghost { background: transparent; color: var(--bg); border-color: color-mix(in srgb, var(--bg) 30%, transparent); }
+  .toast { position: fixed; left: 50%; top: 18px; transform: translate(-50%, -12px); opacity: 0; pointer-events: none; padding: 10px 16px; border-radius: 12px; background: var(--text); color: var(--bg); font-size: 14px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,.2); transition: opacity .2s, transform .2s; z-index: 11; max-width: calc(100% - 32px); }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.err { background: var(--err); color: #fff; }
+
+  footer { margin-top: 22px; color: var(--muted); font-size: 12.5px; text-align: center; }
+  code { font-family: var(--mono); font-size: 12px; background: var(--card-2); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; }
+  [hidden] { display: none !important; }
+
+  @media (max-width: 420px) {
+    .hero { padding: 16px; }
+    .state { font-size: 21px; }
+    .orb { width: 48px; height: 48px; }
+    details.panel > summary { padding: 14px; }
+    .p-body { padding: 2px 14px 16px; }
+  }
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-power" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.4 6.6a8 8 0 1 0 11.2 0"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 3v5h5"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 21v-5h-5"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+    <symbol id="i-bt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h0M4 12h0M4 18h0"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 6v7M12 18h0"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7 7 17"/></symbol>
+    <symbol id="i-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-9-9"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-usb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v14M9 5l3-3 3 3"/><circle cx="12" cy="19" r="3"/><path d="M12 12 7 9V7M12 14l5-3V9"/></symbol>
+    <symbol id="i-chip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></symbol>
+  </defs>
+</svg>
+
 <main>
-  <h1>PS5 전원 제어</h1>
-  <p class="sub">LAN 전용. 스마트싱스 Edge 드라이버는 <code>GET /status</code>, <code>POST /wake</code> 를 호출합니다.</p>
-
-  <section>
-    <h2>현재 상태</h2>
-    <div class="state"><span class="dot" id="dot"></span><span id="stateText">확인 전</span></div>
-    <div class="meta" id="stateMeta"></div>
-    <div class="actions">
-      <button id="btnStatus">상태 조회</button>
-      <button id="btnWake" class="primary">깨우기</button>
-      <button id="btnStandby">휴식 모드</button>
-      <button id="btnAdapter">어댑터 확인</button>
+  <header class="top">
+    <div class="brand">
+      <div class="logo"><svg width="22" height="22"><use href="#i-power"/></svg></div>
+      <div><h1>PS5 전원 제어</h1><p>SmartThings 연동 서버 · LAN 전용</p></div>
     </div>
-    <div class="msg" id="actMsg"></div>
-    <pre id="actOut" hidden></pre>
-  </section>
+    <span class="ver" id="ver">—</span>
+  </header>
 
-  <section>
-    <h2>설정</h2>
-    <form id="cfg">
-      <label for="ps5_ip">PS5 IP 주소</label>
-      <input id="ps5_ip" name="ps5_ip" placeholder="192.168.1.20" autocomplete="off">
-      <div class="row">
-        <div>
-          <label for="controller_addr">듀얼센스 블루투스 주소</label>
-          <input id="controller_addr" name="controller_addr" placeholder="AA:BB:CC:DD:EE:FF" autocomplete="off" spellcheck="false">
+  <div class="layout">
+    <div class="col col-a">
+      <section class="card hero" aria-live="polite">
+        <div class="hero-top">
+          <div class="orb" id="orb" data-state="unknown"><svg width="26" height="26"><use href="#i-power"/></svg></div>
+          <div class="hero-text">
+            <div class="eyebrow">PLAYSTATION 5</div>
+            <div class="state" id="stateText">확인 중…</div>
+            <div class="meta" id="stateMeta"></div>
+          </div>
+          <button class="icon-btn" id="btnRefresh" type="button" title="상태 새로고침" aria-label="상태 새로고침"><svg width="18" height="18"><use href="#i-refresh"/></svg></button>
         </div>
-        <div>
-          <label for="ps5_addr">PS5 블루투스 주소</label>
-          <input id="ps5_addr" name="ps5_addr" placeholder="11:22:33:44:55:66" autocomplete="off" spellcheck="false">
+        <div class="hero-actions">
+          <button class="btn primary" id="btnWake" type="button"><svg width="18" height="18"><use href="#i-power"/></svg>켜기</button>
+          <button class="btn" id="btnStandby" type="button"><svg width="18" height="18"><use href="#i-moon"/></svg>휴식 모드</button>
         </div>
-      </div>
-      <label for="hci">블루투스 어댑터</label>
-      <input id="hci" name="hci" placeholder="hci0">
-      <label for="api_secret">API 시크릿 (깨우기·휴식 모드 호출에 필요, 비우면 LAN 누구나 호출 가능)</label>
-      <input id="api_secret" name="api_secret" placeholder="SmartThings 장치 설정의 시크릿과 같게" autocomplete="off" spellcheck="false">
-      <div class="row">
-        <div>
-          <label for="status_timeout_ms">상태 조회 대기 (ms)</label>
-          <input id="status_timeout_ms" name="status_timeout_ms" type="number" min="200" max="30000" step="100">
+        <p class="hero-note" id="heroNote" hidden></p>
+        <div id="actResult"></div>
+      </section>
+      <details class="panel" id="p-basic">
+        <summary>
+          <span class="p-icon"><svg width="19" height="19"><use href="#i-home"/></svg></span>
+          <span class="p-title"><strong>기본 설정</strong><small>PS5 주소와 API 시크릿</small></span>
+          <span class="badge" id="b-basic"></span>
+          <svg class="chev" width="20" height="20"><use href="#i-chev"/></svg>
+        </summary>
+        <div class="p-body">
+          <div class="grid">
+            <div class="field">
+              <label for="ps5_ip">PS5 IP 주소</label>
+              <input id="ps5_ip" class="mono" placeholder="192.168.1.20" autocomplete="off" spellcheck="false" inputmode="decimal">
+              <p class="help">공유기에서 PS5 에 고정 IP 를 주면 편합니다.</p>
+            </div>
+            <div class="field">
+              <label for="api_secret">API 시크릿</label>
+              <div class="suffix">
+                <input id="api_secret" type="password" class="mono" placeholder="비우면 인증 없이 호출" autocomplete="new-password" spellcheck="false">
+                <button class="peek" type="button" id="peekSecret" title="보이기" aria-label="시크릿 보이기"><svg width="18" height="18"><use href="#i-eye"/></svg></button>
+              </div>
+              <p class="help">SmartThings 장치 설정에 같은 값을 넣습니다.</p>
+            </div>
+          </div>
         </div>
-        <div>
-          <label for="wake_timeout_ms">페이지 응답 대기 (ms)</label>
-          <input id="wake_timeout_ms" name="wake_timeout_ms" type="number" min="1000" max="30000" step="500">
+      </details>
+      <details class="panel" id="p-adv">
+        <summary>
+          <span class="p-icon"><svg width="19" height="19"><use href="#i-sliders"/></svg></span>
+          <span class="p-title"><strong>고급</strong><small>대기 시간과 재시도</small></span>
+          <span class="badge plain" id="b-adv"></span>
+          <svg class="chev" width="20" height="20"><use href="#i-chev"/></svg>
+        </summary>
+        <div class="p-body">
+          <div class="grid">
+            <div class="field">
+              <label for="status_timeout_ms">상태 조회 대기</label>
+              <div class="suffix"><input id="status_timeout_ms" type="number" min="200" max="30000" step="100"><span class="unit">ms</span></div>
+            </div>
+            <div class="field">
+              <label for="wake_timeout_ms">블루투스 응답 대기</label>
+              <div class="suffix"><input id="wake_timeout_ms" type="number" min="1000" max="30000" step="500"><span class="unit">ms</span></div>
+            </div>
+            <div class="field">
+              <label for="wake_attempts">깨우기 시도</label>
+              <div class="suffix"><input id="wake_attempts" type="number" min="1" max="10"><span class="unit">회</span></div>
+            </div>
+            <div class="field">
+              <label for="wake_retry_ms">재시도 간격</label>
+              <div class="suffix"><input id="wake_retry_ms" type="number" min="0" max="30000" step="500"><span class="unit">ms</span></div>
+            </div>
+          </div>
         </div>
-        <div>
-          <label for="wake_attempts">깨우기 시도 횟수</label>
-          <input id="wake_attempts" name="wake_attempts" type="number" min="1" max="10">
-        </div>
-        <div>
-          <label for="wake_retry_ms">재시도 간격 (ms)</label>
-          <input id="wake_retry_ms" name="wake_retry_ms" type="number" min="0" max="30000" step="500">
-        </div>
-      </div>
-      <div class="actions">
-        <button type="submit" class="primary">저장</button>
-        <button type="button" id="btnReload">다시 불러오기</button>
-      </div>
-      <div class="msg" id="cfgMsg"></div>
-    </form>
-  </section>
-
-  <section>
-    <h2>Remote Play 등록 (휴식 모드 · 네트워크 깨우기)</h2>
-    <p class="hint">PS5 에 Remote Play 클라이언트로 등록하면 휴식 모드로 보낼 수 있고, 휴식 모드에서는 블루투스 없이 네트워크로 깨웁니다. PS5 설정 → 시스템 → 리모트 플레이에서 "리모트 플레이 활성화" 가 켜져 있어야 합니다.</p>
-    <div class="state" id="rpState" style="font-size:15px">확인 전</div>
-    <div class="meta" id="rpMeta"></div>
-    <div id="rpSteps">
-      <label>1. PSN 계정 ID</label>
-      <p class="hint">[PSN 로그인] 을 눌러 새 탭에서 로그인하면 "redirect" 페이지로 갑니다. 그 페이지의 주소를 복사해 아래에 붙여넣고 [계정 ID 가져오기] 를 누르세요. 숫자 계정 ID 를 이미 안다면 그 값을 넣어도 됩니다.</p>
-      <div class="actions">
-        <button type="button" id="btnPsnLogin">PSN 로그인</button>
-      </div>
-      <input id="rpRedirect" placeholder="https://remoteplay.dl.playstation.net/remoteplay/redirect?code=… 또는 숫자 계정 ID" autocomplete="off" spellcheck="false">
-      <div class="actions">
-        <button type="button" id="btnAccount">계정 ID 가져오기</button>
-      </div>
-      <label for="rpAccount">계정 ID (base64)</label>
-      <input id="rpAccount" placeholder="AAAAAAAAAEI=" autocomplete="off" spellcheck="false">
-      <label for="rpPin">2. PS5 가 보여 주는 PIN (설정 → 시스템 → 리모트 플레이 → 기기 연결)</label>
-      <input id="rpPin" placeholder="12345678" inputmode="numeric" maxlength="8" autocomplete="off">
-      <div class="actions">
-        <button type="button" id="btnRegister" class="primary">등록</button>
-        <button type="button" id="btnUnregister">등록 해제</button>
-      </div>
+      </details>
     </div>
-    <div class="msg" id="rpMsg"></div>
-  </section>
+    <div class="col col-b">
+      <details class="panel" id="p-bt">
+        <summary>
+          <span class="p-icon"><svg width="19" height="19"><use href="#i-bt"/></svg></span>
+          <span class="p-title"><strong>블루투스 깨우기</strong><small>완전히 꺼진 PS5 를 켤 때 씁니다</small></span>
+          <span class="badge" id="b-bt"></span>
+          <svg class="chev" width="20" height="20"><use href="#i-chev"/></svg>
+        </summary>
+        <div class="p-body">
+          <div class="grid">
+            <div class="field">
+              <label for="controller_addr">듀얼센스 주소</label>
+              <input id="controller_addr" class="mono addr" placeholder="AA:BB:CC:DD:EE:FF" autocomplete="off" spellcheck="false" maxlength="17">
+            </div>
+            <div class="field">
+              <label for="ps5_addr">PS5 블루투스 주소</label>
+              <input id="ps5_addr" class="mono addr" placeholder="11:22:33:44:55:66" autocomplete="off" spellcheck="false" maxlength="17">
+            </div>
+          </div>
 
-  <section>
-    <h2>로그</h2>
-    <div class="logbar">
-      <select id="logLevel">
-        <option value="DEBUG">전체 (DEBUG 포함)</option>
-        <option value="INFO" selected>INFO 이상</option>
-        <option value="WARN">WARN 이상</option>
-      </select>
-      <label class="inline"><input type="checkbox" id="logFollow" checked> 자동 갱신</label>
-      <button type="button" id="btnLogClear">화면 비우기</button>
-      <a id="logDownload" href="/api/logs/download"><button type="button">파일 다운로드</button></a>
-    </div>
-    <div class="log" id="logView"></div>
-    <p class="hint" style="margin-top:8px">서버의 <code>/data/logs/ps5ctl.log</code> 와 같은 내용입니다. 1 MB 마다 회전하고 3개까지만 둡니다. DEBUG 는 <code>PS5_LOG_LEVEL=debug</code> 로 켠 경우에만 있습니다.</p>
-  </section>
+          <div class="sub-grid">
+            <div class="sub-card">
+              <h3>USB 듀얼센스에서 읽기</h3>
+              <p class="help" id="hidHint">PS5 와 페어링된 듀얼센스를 이 PC 에 USB 로 꽂으면 두 주소를 채웁니다.</p>
+              <div class="ctl-row">
+                <button class="btn small" id="btnHid" type="button"><svg width="16" height="16"><use href="#i-usb"/></svg>듀얼센스 읽기</button>
+              </div>
+            </div>
+            <div class="sub-card">
+              <h3>블루투스 어댑터</h3>
+              <p class="help">서버의 동글이 주소 변경을 지원해야 깨울 수 있습니다.</p>
+              <div class="ctl-row">
+                <input id="hci" class="mono" placeholder="hci0" autocomplete="off" spellcheck="false" aria-label="어댑터 이름">
+                <button class="btn small" id="btnAdapter" type="button"><svg width="16" height="16"><use href="#i-chip"/></svg>확인</button>
+              </div>
+            </div>
+          </div>
+          <div id="hidResult"></div>
+          <div id="adapterResult"></div>
+        </div>
+      </details>
+      <details class="panel" id="p-rp">
+        <summary>
+          <span class="p-icon"><svg width="19" height="19"><use href="#i-link"/></svg></span>
+          <span class="p-title"><strong>Remote Play</strong><small>휴식 모드 전환과 네트워크 깨우기</small></span>
+          <span class="badge" id="b-rp"></span>
+          <svg class="chev" width="20" height="20"><use href="#i-chev"/></svg>
+        </summary>
+        <div class="p-body">
+          <div class="notice" id="rpUnavailable" hidden>이 빌드에는 Remote Play 가 포함되어 있지 않습니다.</div>
 
-  <section>
-    <h2>듀얼센스에서 주소 읽기</h2>
-    <p class="hint">듀얼센스를 이 PC 에 USB 로 꽂고 버튼을 누르면 크롬 WebHID 로 컨트롤러 주소와 마지막으로 페어링된 PS5 주소를 읽어 위 칸에 채웁니다. 서버에는 아무것도 꽂을 필요가 없습니다.</p>
-    <p class="hint" id="hidHint"></p>
-    <div class="actions">
-      <button id="btnHid" class="primary">USB 듀얼센스 읽기</button>
+          <div id="rpLocked" hidden>
+            <div class="sub-card">
+              <div class="lock-head">
+                <span class="lock-icon"><svg width="20" height="20"><use href="#i-lock"/></svg></span>
+                <div class="t"><strong id="rpNick">등록됨</strong><span>등록 정보는 잠겨 있습니다. 바꾸려면 먼저 해제하세요.</span></div>
+              </div>
+              <dl class="kv">
+                <dt>계정 ID</dt><dd class="mono" id="rpAccountView">—</dd>
+                <dt>PS5 MAC</dt><dd class="mono" id="rpMac">—</dd>
+                <dt>등록 시각</dt><dd id="rpAt">—</dd>
+              </dl>
+              <div class="btn-row" id="rpUnlockRow">
+                <button class="btn small danger" id="btnUnregister" type="button">등록 해제</button>
+              </div>
+              <div class="confirm" id="rpConfirm" hidden>
+                <span>해제하면 휴식 모드 전환과 네트워크 깨우기가 꺼집니다.</span>
+                <button class="btn small" id="btnUnregCancel" type="button">취소</button>
+                <button class="btn small danger solid" id="btnUnregOk" type="button">해제</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="rpForm" hidden>
+            <ol class="steps">
+              <li><span>PS5 의 설정 → 시스템 → 리모트 플레이에서 <b>리모트 플레이 활성화</b>를 켭니다.</span></li>
+              <li><span>같은 화면의 <b>기기 연결</b>을 눌러 8자리 PIN 을 띄웁니다.</span></li>
+              <li><span>PSN 계정 ID 와 PIN 을 넣고 등록합니다. PIN 은 몇 분 뒤 바뀝니다.</span></li>
+            </ol>
+            <div class="grid">
+              <div class="field">
+                <label for="rpAccount">PSN 계정 ID</label>
+                <input id="rpAccount" class="mono" placeholder="ywT7cR8BAAA=" autocomplete="off" spellcheck="false">
+                <p class="help">base64 계정 ID(12자) 또는 숫자 사용자 ID</p>
+              </div>
+              <div class="field">
+                <label for="rpPin">PIN</label>
+                <input id="rpPin" class="mono" placeholder="12345678" inputmode="numeric" maxlength="8" autocomplete="one-time-code">
+                <p class="help">PS5 화면에 보이는 8자리 숫자</p>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn primary" id="btnRegister" type="button">등록</button>
+            </div>
+          </div>
+          <div id="rpResult"></div>
+        </div>
+      </details>
     </div>
-    <div class="msg" id="hidMsg"></div>
-  </section>
+    <div class="wide">
+      <details class="panel" id="p-log">
+        <summary>
+          <span class="p-icon"><svg width="19" height="19"><use href="#i-list"/></svg></span>
+          <span class="p-title"><strong>로그</strong><small>서버에서 일어난 일</small></span>
+          <span class="badge" id="b-log" hidden></span>
+          <svg class="chev" width="20" height="20"><use href="#i-chev"/></svg>
+        </summary>
+        <div class="p-body">
+          <div class="logbar">
+            <label class="switch"><input type="checkbox" id="logFollow" checked> 자동 갱신</label>
+            <select id="logLevel" aria-label="표시할 레벨">
+              <option value="DEBUG">전체</option>
+              <option value="INFO" selected>INFO 이상</option>
+              <option value="WARN">WARN 이상</option>
+            </select>
+            <button class="btn small" id="btnLogClear" type="button">비우기</button>
+            <a class="btn small" href="/api/logs/download" download><svg width="16" height="16"><use href="#i-download"/></svg>파일</a>
+          </div>
+          <div class="log" id="logView"></div>
+          <p class="help">서버의 <code>logs/ps5ctl.log</code> 와 같은 내용입니다. 1 MB 마다 회전하고 3개까지 둡니다.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+
+
+  <footer>SmartThings Edge 드라이버는 <code>GET /status</code> · <code>POST /wake</code> · <code>POST /standby</code> 를 호출합니다.</footer>
 </main>
+
+<div class="savebar" id="saveBar" role="region" aria-label="저장">
+  <span>저장하지 않은 변경 사항이 있습니다</span>
+  <button class="btn ghost" id="btnRevert" type="button">되돌리기</button>
+  <button class="btn primary" id="btnSave" type="button">저장</button>
+</div>
+<div class="toast" id="toast" role="status"></div>
 
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const fields = ["ps5_ip", "controller_addr", "ps5_addr", "hci", "api_secret", "status_timeout_ms", "wake_timeout_ms", "wake_attempts", "wake_retry_ms"];
+  const FIELDS = ["ps5_ip", "api_secret", "controller_addr", "ps5_addr", "hci", "status_timeout_ms", "wake_timeout_ms", "wake_attempts", "wake_retry_ms"];
+  const NUMERIC = new Set(["status_timeout_ms", "wake_timeout_ms", "wake_attempts", "wake_retry_ms"]);
+  const FIELD_NAME = { ps5_ip: "PS5 IP", controller_addr: "듀얼센스 주소", ps5_addr: "PS5 블루투스 주소", hci: "블루투스 어댑터", remote_play: "Remote Play 등록" };
+  const STATE = { on: "켜짐", standby: "휴식 모드", off: "꺼짐", unknown: "알 수 없음" };
+  const ZERO = "00:00:00:00:00:00";
 
-  function say(el, text, cls) { el.textContent = text; el.className = "msg " + (cls || ""); }
-  function show(pre, obj) { pre.hidden = false; pre.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2); }
+  let baseline = {};
+  let rpRegistered = false;
+  let adapterChecked = false;
+  let busy = false;
+
+  // ---------- helpers ----------
+  function esc(s) { return String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+  function store(key, val) { try { if (val === undefined) return JSON.parse(localStorage.getItem(key)); localStorage.setItem(key, JSON.stringify(val)); } catch (_) { return null; } }
 
   async function api(method, path, body) {
     const headers = body ? { "Content-Type": "application/json" } : {};
-    // The LAN actions want the API secret; the page knows it from the form.
     const secret = ($("api_secret").value || "").trim();
-    if (secret && (path === "/wake" || path === "/standby")) headers["X-PS5-Secret"] = secret;
-    const res = await fetch(path, {
-      method, headers,
-      body: body ? JSON.stringify(body) : undefined, cache: "no-store",
-    });
-    let data = null;
-    try { data = await res.json(); } catch (_) { /* empty body */ }
-    return { ok: res.ok, status: res.status, data };
+    if (secret && (path.startsWith("/wake") || path === "/standby")) headers["X-PS5-Secret"] = secret;
+    try {
+      const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
+      let data = null;
+      try { data = await res.json(); } catch (_) { /* empty body */ }
+      return { ok: res.ok, status: res.status, data: data || {} };
+    } catch (e) {
+      return { ok: false, status: 0, data: { error: "서버에 연결하지 못했습니다" } };
+    }
   }
 
-  // ---- config ----
+  // Server errors are short English sentences; say the common ones in Korean.
+  function friendly(err) {
+    if (!err) return "";
+    const m = err.match(/not configured: \[?([a-z0-9_, ]+)\]?/);
+    if (m) return m[1].split(/[ ,]+/).filter(Boolean).map((f) => FIELD_NAME[f] || f).join(", ") + " 설정이 필요합니다.";
+    const table = [
+      [/80108b09|invalid PIN/i, "PIN 이 맞지 않습니다. PS5 화면에 지금 보이는 PIN 을 넣으세요."],
+      [/80108b02|invalid PSN account/i, "계정 ID 가 이 PS5 의 PSN 계정과 맞지 않습니다."],
+      [/80108b10|already in use/i, "PS5 에서 리모트 플레이가 이미 사용 중입니다."],
+      [/passcode/i, "PS5 사용자에 로그인 비밀번호가 걸려 있어 세션을 열 수 없습니다."],
+      [/already registered/i, "이미 등록되어 있습니다. 먼저 등록을 해제하세요."],
+      [/account ID must be|account ID is empty|bad account/i, "계정 ID 형식이 맞지 않습니다. base64(12자) 또는 숫자 ID 를 넣으세요."],
+      [/PIN/i, "PIN 은 8자리 숫자입니다."],
+      [/missing or wrong X-PS5-Secret/i, "API 시크릿이 맞지 않습니다. 저장한 값과 같은지 확인하세요."],
+      [/already in progress/i, "다른 깨우기나 휴식 모드 요청이 진행 중입니다."],
+      [/did not answer discovery after the network wake/i, "네트워크로 깨우기 신호를 보냈지만 PS5 가 응답하지 않았습니다."],
+      [/still reports on/i, "휴식 모드 신호를 보냈지만 PS5 가 아직 켜져 있습니다."],
+      [/not available in this build/i, "이 빌드에는 Remote Play 가 없습니다."],
+      [/unsupported|not supported/i, "이 동글은 주소 변경을 지원하지 않습니다."],
+      [/permission|operation not permitted/i, "서버에 블루투스 권한이 없습니다 (NET_ADMIN · NET_RAW)."],
+    ];
+    for (const [re, text] of table) if (re.test(err)) return text;
+    return err;
+  }
+
+  const ICON = { ok: "i-check", warn: "i-alert", err: "i-x", busy: "i-spin" };
+  // result renders a status card into host. facts is [[label, value], ...].
+  function result(host, kind, title, text, facts, detail) {
+    const el = typeof host === "string" ? $(host) : host;
+    if (!kind) { el.innerHTML = ""; return; }
+    const f = (facts || []).filter((x) => x && x[1] !== undefined && x[1] !== "");
+    el.innerHTML = `<div class="result ${kind}">
+      <span class="r-icon"><svg width="16" height="16"><use href="#${ICON[kind]}"/></svg></span>
+      <div class="r-body"><div class="r-title">${esc(title)}</div>${text ? `<div class="r-text">${esc(text)}</div>` : ""}
+      ${f.length ? `<div class="facts">${f.map(([k, v]) => `<span class="fact"><b>${esc(k)}</b>${esc(v)}</span>`).join("")}</div>` : ""}
+      ${detail && !text ? `<div class="r-detail">${esc(detail)}</div>` : ""}</div>
+      ${kind === "busy" ? "" : `<button class="r-close" type="button" aria-label="닫기"><svg width="16" height="16"><use href="#i-x"/></svg></button>`}
+    </div>`;
+    const close = el.querySelector(".r-close");
+    if (close) close.addEventListener("click", () => { el.innerHTML = ""; });
+  }
+
+  let toastTimer;
+  function toast(text, isErr) {
+    const t = $("toast");
+    t.textContent = text;
+    t.className = "toast show" + (isErr ? " err" : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.className = "toast" + (isErr ? " err" : ""); }, 2600);
+  }
+
+  function badge(id, kind, text) {
+    const b = $(id);
+    b.hidden = !text;
+    b.textContent = text || "";
+    b.className = "badge" + (kind ? " " + kind : "") + (b.id === "b-adv" ? " plain" : "");
+  }
+
+  function ago(d) {
+    const s = Math.round((Date.now() - d.getTime()) / 1000);
+    if (s < 5) return "방금 확인";
+    if (s < 60) return `${s}초 전 확인`;
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + " 확인";
+  }
+
+  // ---------- panels (remember open/closed) ----------
+  const panelState = store("ps5.panels") || { "p-basic": true, "p-bt": true, "p-rp": true };
+  document.querySelectorAll("details.panel").forEach((d) => {
+    d.open = !!panelState[d.id];
+    d.addEventListener("toggle", () => {
+      panelState[d.id] = d.open;
+      store("ps5.panels", panelState);
+      if (d.id === "p-bt" && d.open && !adapterChecked) checkAdapter(true);
+    });
+  });
+
+  // ---------- config ----------
+  function readForm() {
+    const o = {};
+    for (const f of FIELDS) {
+      const v = $(f).value.trim();
+      o[f] = NUMERIC.has(f) ? Number(v) : (f.endsWith("_addr") ? v.toUpperCase() : v);
+    }
+    return o;
+  }
+  function fillForm(c) {
+    for (const f of FIELDS) {
+      let v = c[f] ?? "";
+      if (f.endsWith("_addr") && v === ZERO) v = "";
+      $(f).value = v;
+    }
+    baseline = readForm();
+    markDirty();
+    updateBadges();
+  }
+  function isDirty() {
+    const now = readForm();
+    return FIELDS.some((f) => String(now[f]) !== String(baseline[f]));
+  }
+  function markDirty() { $("saveBar").classList.toggle("show", isDirty()); }
+
+  function updateBadges() {
+    const c = readForm();
+    if (c.ps5_ip) badge("b-basic", "", c.ps5_ip); else badge("b-basic", "warn", "PS5 IP 필요");
+    if (!adapterChecked) {
+      if (c.controller_addr && c.ps5_addr) badge("b-bt", "ok", "주소 설정됨"); else badge("b-bt", "warn", "주소 필요");
+    }
+    const sec = (c.status_timeout_ms / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 });
+    badge("b-adv", "", `조회 ${sec}초 · ${c.wake_attempts || "?"}회 시도`);
+  }
+
   async function loadConfig() {
     const r = await api("GET", "/api/config");
-    if (!r.ok) { say($("cfgMsg"), "설정을 불러오지 못했습니다: " + (r.data && r.data.error || r.status), "err"); return; }
-    for (const f of fields) $(f).value = r.data[f] ?? "";
-    say($("cfgMsg"), "");
+    if (!r.ok) { toast("설정을 불러오지 못했습니다: " + friendly(r.data.error || String(r.status)), true); return; }
+    fillForm(r.data);
   }
-  $("cfg").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const body = {};
-    for (const f of fields) {
-      const v = $(f).value.trim();
-      body[f] = f.endsWith("_ms") || f === "wake_attempts" ? Number(v) : v;
+
+  async function saveConfig() {
+    const body = readForm();
+    for (const f of ["controller_addr", "ps5_addr"]) {
+      if (body[f] && !/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(body[f])) { $(f).classList.add("invalid"); $("p-bt").open = true; $(f).focus(); toast(`${FIELD_NAME[f]} 형식은 AA:BB:CC:DD:EE:FF 입니다`, true); return; }
     }
-    const r = await api("PUT", "/api/config", body);
-    if (!r.ok) { say($("cfgMsg"), "저장 실패: " + (r.data && r.data.error || r.status), "err"); return; }
-    for (const f of fields) $(f).value = r.data[f] ?? "";
-    say($("cfgMsg"), "저장했습니다.", "ok");
-  });
-  $("btnReload").addEventListener("click", loadConfig);
-
-  // ---- actions ----
-  const stateLabel = { on: "켜짐", standby: "휴식 모드", off: "꺼짐 (응답 없음)", unknown: "알 수 없는 응답" };
-  async function refreshStatus() {
-    say($("actMsg"), "상태 조회 중…");
-    const r = await api("GET", "/status");
-    if (!r.ok) { say($("actMsg"), "조회 실패: " + (r.data && r.data.error || r.status), "err"); return; }
-    const st = r.data.state;
-    $("dot").className = "dot " + st;
-    $("stateText").textContent = stateLabel[st] || st;
-    const f = r.data.fields || {};
-    $("stateMeta").textContent = [f["host-name"], f["host-type"], r.data.code ? "코드 " + r.data.code : "", new Date(r.data.checked_at).toLocaleTimeString()].filter(Boolean).join(" · ");
-    say($("actMsg"), "");
-    show($("actOut"), r.data);
+    const b = $("btnSave"); b.disabled = true;
+    try {
+      const r = await api("PUT", "/api/config", body);
+      if (!r.ok) { toast("저장하지 못했습니다: " + friendly(r.data.error || String(r.status)), true); return; }
+      fillForm(r.data);
+      toast("저장했습니다");
+      refreshStatus();
+    } finally { b.disabled = false; }
   }
-  $("btnStatus").addEventListener("click", refreshStatus);
 
-  const methodLabel = { none: "이미 켜져 있음", network: "네트워크(Remote Play)", bluetooth: "블루투스" };
+  FIELDS.forEach((f) => {
+    $(f).addEventListener("input", () => { $(f).classList.remove("invalid"); markDirty(); updateBadges(); });
+    $(f).addEventListener("keydown", (e) => { if (e.key === "Enter" && isDirty()) { e.preventDefault(); saveConfig(); } });
+  });
+  document.querySelectorAll("input.addr").forEach((el) => el.addEventListener("blur", () => {
+    const hex = el.value.replace(/[^0-9a-fA-F]/g, "");
+    if (hex.length === 12) el.value = hex.toUpperCase().match(/../g).join(":");
+    else el.value = el.value.toUpperCase();
+    markDirty();
+  }));
+  $("btnSave").addEventListener("click", saveConfig);
+  $("btnRevert").addEventListener("click", () => { fillForm(baseline); FIELDS.forEach((f) => $(f).classList.remove("invalid")); });
+  $("peekSecret").addEventListener("click", () => {
+    const i = $("api_secret"); i.type = i.type === "password" ? "text" : "password";
+  });
+  window.addEventListener("beforeunload", (e) => { if (isDirty()) { e.preventDefault(); e.returnValue = ""; } });
+
+  // ---------- status ----------
+  let lastChecked = null;
+  async function refreshStatus(quiet) {
+    if (!quiet) $("btnRefresh").classList.add("spin");
+    const r = await api("GET", "/status");
+    $("btnRefresh").classList.remove("spin");
+    const orb = $("orb");
+    if (!r.ok) {
+      lastChecked = null;
+      if (r.status === 409) {
+        orb.dataset.state = "unknown";
+        $("stateText").textContent = "설정이 필요합니다";
+        $("stateMeta").innerHTML = "<span>기본 설정에서 PS5 IP 를 넣으세요</span>";
+      } else {
+        orb.dataset.state = "error";
+        $("stateText").textContent = "조회 실패";
+        $("stateMeta").innerHTML = `<span>${esc(friendly(r.data.error || String(r.status)))}</span>`;
+      }
+      return null;
+    }
+    const d = r.data, f = d.fields || {};
+    orb.dataset.state = d.state;
+    $("stateText").textContent = STATE[d.state] || d.state;
+    lastChecked = new Date(d.checked_at || Date.now());
+    const parts = [f["host-name"], d.host, ago(lastChecked)].filter(Boolean);
+    $("stateMeta").innerHTML = parts.map((p) => `<span>${esc(p)}</span>`).join("");
+    return d.state;
+  }
+  setInterval(() => {
+    if (!lastChecked) return;
+    const spans = $("stateMeta").querySelectorAll("span");
+    if (spans.length) spans[spans.length - 1].textContent = ago(lastChecked);
+  }, 5000);
+  setInterval(() => { if (!busy && document.visibilityState === "visible") refreshStatus(true); }, 15000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !busy) refreshStatus(true); });
+  $("btnRefresh").addEventListener("click", () => refreshStatus());
+
+  // Poll until the console reports want, for up to ms.
+  async function waitFor(want, ms) {
+    const until = Date.now() + ms;
+    while (Date.now() < until) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const st = await refreshStatus(true);
+      if (want.includes(st)) return st;
+    }
+    return null;
+  }
+
+  function setBusy(on) {
+    busy = on;
+    $("btnWake").disabled = on;
+    $("btnStandby").disabled = on || !rpRegistered;
+    $("orb").classList.toggle("pulse", on);
+  }
+
+  // ---------- wake / standby ----------
+  const METHOD = { none: "이미 켜짐", network: "네트워크", bluetooth: "블루투스" };
   $("btnWake").addEventListener("click", async () => {
-    const b = $("btnWake"); b.disabled = true;
-    say($("actMsg"), "깨우는 중… 휴식 모드면 네트워크로, 아니면 블루투스로 페이지합니다. 최대 1분쯤 걸립니다.");
+    setBusy(true);
+    result("actResult", "busy", "PS5 를 깨우는 중…", "휴식 모드면 네트워크로, 꺼져 있으면 블루투스로 깨웁니다. 최대 1분쯤 걸립니다.");
     try {
       const r = await api("POST", "/wake");
-      const d = r.data || {};
-      const bt = d.bluetooth || {};
-      show($("actOut"), d);
-      const how = methodLabel[d.method] || d.method;
-      if (r.ok) say($("actMsg"), `성공 (${how})${bt.status_text ? ": " + bt.status_text + " (" + bt.attempts + "회 시도)" : ""}`, "ok");
-      else if (r.status === 504) say($("actMsg"), `응답 없음 (${how})${bt.status_text ? ": " + bt.status_text + " (" + bt.attempts + "회 시도)" : ""}. ${d.error || "PS5 가 꺼져 있고 거리 밖이거나, 컨트롤러 주소가 페어링 목록에 없을 수 있습니다."}`, "warn");
-      else if (r.status === 401) say($("actMsg"), "API 시크릿이 맞지 않습니다. 설정을 저장했는지 확인하세요.", "err");
-      else say($("actMsg"), `실패 (${how}): ` + (d.error || bt.status_text || r.status), "err");
-      if (bt.restored === false) say($("actMsg"), $("actMsg").textContent + " 경고: 어댑터 주소 원복 실패, 원래 주소 " + bt.original_addr, "err");
-      if (r.ok) setTimeout(refreshStatus, 3000);
-    } finally { b.disabled = false; }
+      const d = r.data, bt = d.bluetooth;
+      const facts = [["경로", METHOD[d.method] || d.method]];
+      if (bt) {
+        facts.push(["시도", `${bt.attempts}회`]);
+        if (bt.status_text) facts.push(["응답", bt.status_text]);
+        facts.push(["동글 주소", bt.restored ? "원래대로 복구" : "복구 실패 " + (bt.original_addr || "")]);
+      }
+      if (r.ok && d.method === "none") { result("actResult", "ok", "이미 켜져 있습니다", "", facts); refreshStatus(true); return; }
+      if (r.ok && d.method === "network") { result("actResult", "ok", "PS5 가 켜졌습니다", "Remote Play 로 휴식 모드에서 깨웠습니다.", facts); refreshStatus(true); return; }
+      if (r.ok) {
+        result("actResult", "busy", "블루투스 신호에 PS5 가 응답했습니다", "부팅을 기다리는 중입니다…", facts);
+        const st = await waitFor(["on"], 60000);
+        if (st) result("actResult", "ok", "PS5 가 켜졌습니다", "블루투스로 깨웠습니다.", facts);
+        else result("actResult", "warn", "신호는 갔지만 아직 켜짐이 확인되지 않습니다", "부팅이 길어지거나 휴식 모드 응답이 꺼져 있을 수 있습니다.", facts);
+        return;
+      }
+      const msg = friendly(d.error);
+      if (r.status === 504) result("actResult", "warn", "PS5 가 응답하지 않았습니다", msg === d.error ? "PS5 가 블루투스 거리 밖이거나, 듀얼센스 주소가 PS5 의 페어링 목록에 없을 수 있습니다." : msg, facts, d.error);
+      else if (r.status === 409) result("actResult", "warn", "설정이 부족합니다", msg, null, d.error);
+      else result("actResult", "err", "깨우지 못했습니다", msg, bt ? facts : null, d.error);
+      if (bt && bt.restored === false) toast("경고: 동글 주소를 되돌리지 못했습니다. 원래 주소 " + bt.original_addr, true);
+    } finally { setBusy(false); }
   });
 
   $("btnStandby").addEventListener("click", async () => {
-    const b = $("btnStandby"); b.disabled = true;
-    say($("actMsg"), "휴식 모드로 보내는 중… Remote Play 세션을 열고 확인까지 최대 30초쯤 걸립니다.");
+    setBusy(true);
+    result("actResult", "busy", "휴식 모드로 보내는 중…", "Remote Play 세션을 열고 확인까지 30초쯤 걸립니다.");
     try {
       const r = await api("POST", "/standby");
-      const d = r.data || {};
-      show($("actOut"), d);
-      if (r.ok) say($("actMsg"), `휴식 모드 (${stateLabel[d.state] || d.state})`, "ok");
-      else if (r.status === 409) say($("actMsg"), "먼저 아래에서 Remote Play 등록을 하세요: " + (d.error || ""), "warn");
-      else if (r.status === 401) say($("actMsg"), "API 시크릿이 맞지 않습니다. 설정을 저장했는지 확인하세요.", "err");
-      else say($("actMsg"), "실패: " + (d.error || r.status), "err");
-      if (r.ok) setTimeout(refreshStatus, 2000);
-    } finally { b.disabled = false; }
+      const d = r.data;
+      if (r.ok) {
+        result("actResult", "ok", d.state === "on" ? "휴식 모드 요청을 보냈습니다" : "휴식 모드입니다", d.state && d.state !== "standby" ? `현재 상태: ${STATE[d.state] || d.state}` : "");
+        refreshStatus(true);
+        return;
+      }
+      const msg = friendly(d.error);
+      if (r.status === 504) result("actResult", "warn", "아직 켜져 있습니다", msg, null, d.error);
+      else if (r.status === 409) result("actResult", "warn", "Remote Play 등록이 필요합니다", "아래 Remote Play 에서 먼저 등록하세요.");
+      else result("actResult", "err", "휴식 모드로 보내지 못했습니다", msg, null, d.error);
+    } finally { setBusy(false); }
   });
 
-  // ---- Remote Play registration ----
-  let loginUrl = "";
+  // ---------- Remote Play ----------
+  function renderRP(d) {
+    $("rpUnavailable").hidden = d.available;
+    rpRegistered = !!(d.available && d.registered);
+    $("rpLocked").hidden = !rpRegistered;
+    $("rpForm").hidden = !d.available || rpRegistered;
+    $("rpConfirm").hidden = true;
+    $("rpUnlockRow").hidden = false;
+    if (rpRegistered) {
+      $("rpNick").textContent = d.nickname ? `${d.nickname} 에 등록됨` : "등록됨";
+      $("rpAccountView").textContent = d.account_id || "—";
+      $("rpMac").textContent = d.mac || "—";
+      $("rpAt").textContent = d.registered_at ? new Date(d.registered_at).toLocaleString() : "—";
+      badge("b-rp", "ok", "등록됨");
+    } else {
+      badge("b-rp", d.available ? "" : "err", d.available ? "미등록" : "사용 불가");
+    }
+    $("btnStandby").disabled = busy || !rpRegistered;
+    $("heroNote").hidden = rpRegistered;
+    $("heroNote").textContent = rpRegistered ? "" : "휴식 모드는 Remote Play 를 등록하면 쓸 수 있습니다.";
+  }
   async function loadRemotePlay() {
     const r = await api("GET", "/api/remoteplay");
-    if (!r.ok) { say($("rpMsg"), "등록 상태를 불러오지 못했습니다: " + (r.data && r.data.error || r.status), "err"); return; }
-    const d = r.data;
-    loginUrl = d.login_url || "";
-    if (!d.available) {
-      $("rpState").textContent = "이 빌드에는 Remote Play 가 없습니다";
-      $("rpSteps").hidden = true;
-      return;
-    }
-    if (d.registered) {
-      $("rpState").textContent = "등록됨";
-      $("rpMeta").textContent = [d.nickname, d.mac, d.account_id, d.registered_at ? new Date(d.registered_at).toLocaleString() : ""].filter(Boolean).join(" · ");
-      $("rpAccount").value = d.account_id || "";
-    } else {
-      $("rpState").textContent = "미등록";
-      $("rpMeta").textContent = "등록 전에는 휴식 모드 전환과 네트워크 깨우기를 쓸 수 없습니다.";
-    }
-    $("btnUnregister").disabled = !d.registered;
+    if (!r.ok) { result("rpResult", "err", "등록 상태를 불러오지 못했습니다", friendly(r.data.error || String(r.status))); return; }
+    renderRP(r.data);
   }
-  $("btnPsnLogin").addEventListener("click", () => {
-    if (!loginUrl) { say($("rpMsg"), "로그인 주소를 아직 받지 못했습니다.", "err"); return; }
-    window.open(loginUrl, "_blank", "noopener");
-  });
-  $("btnAccount").addEventListener("click", async () => {
-    const v = $("rpRedirect").value.trim();
-    if (!v) { say($("rpMsg"), "리다이렉트된 주소나 숫자 계정 ID 를 넣으세요.", "warn"); return; }
-    const body = /^\d+$/.test(v) ? { user_id: v } : { redirect_url: v };
-    say($("rpMsg"), "계정 ID 조회 중…");
-    const r = await api("POST", "/api/remoteplay/account", body);
-    if (!r.ok) { say($("rpMsg"), "실패: " + (r.data && r.data.error || r.status), "err"); return; }
-    $("rpAccount").value = r.data.account_id;
-    say($("rpMsg"), "계정 ID " + r.data.account_id + ". 이제 PS5 의 PIN 을 넣고 등록하세요.", "ok");
-  });
+  $("rpPin").addEventListener("input", () => { $("rpPin").value = $("rpPin").value.replace(/\D/g, "").slice(0, 8); });
   $("btnRegister").addEventListener("click", async () => {
     const account = $("rpAccount").value.trim(), pin = $("rpPin").value.trim();
-    if (!account || !/^\d{8}$/.test(pin)) { say($("rpMsg"), "계정 ID 와 8자리 PIN 이 필요합니다.", "warn"); return; }
+    if (!account) { $("rpAccount").focus(); result("rpResult", "warn", "계정 ID 를 넣으세요"); return; }
+    if (!/^\d{8}$/.test(pin)) { $("rpPin").focus(); result("rpResult", "warn", "PIN 은 8자리 숫자입니다"); return; }
+    if (isDirty()) { result("rpResult", "warn", "먼저 설정을 저장하세요", "등록은 저장된 PS5 IP 로 연결합니다."); return; }
     const b = $("btnRegister"); b.disabled = true;
-    say($("rpMsg"), "등록 중… PS5 의 기기 연결 화면이 열려 있어야 합니다.");
+    result("rpResult", "busy", "PS5 에 등록하는 중…", "PS5 의 기기 연결 화면이 열려 있어야 합니다.");
     try {
       const r = await api("POST", "/api/remoteplay/register", { account_id: account, pin });
-      if (!r.ok) { say($("rpMsg"), "등록 실패: " + (r.data && r.data.error || r.status), "err"); return; }
-      say($("rpMsg"), `등록됐습니다: ${r.data.nickname || ""} ${r.data.mac || ""}`, "ok");
-      $("rpPin").value = "";
-      await loadRemotePlay();
+      if (!r.ok) { result("rpResult", "err", "등록하지 못했습니다", friendly(r.data.error || String(r.status)), null, r.data.error); return; }
+      $("rpPin").value = ""; $("rpAccount").value = "";
+      renderRP(r.data);
+      result("rpResult", "ok", "등록했습니다", "이제 휴식 모드 전환과 네트워크 깨우기를 쓸 수 있습니다.", [["PS5", r.data.nickname], ["MAC", r.data.mac]]);
     } finally { b.disabled = false; }
   });
-  $("btnUnregister").addEventListener("click", async () => {
-    if (!confirm("Remote Play 등록을 지울까요? 휴식 모드 전환과 네트워크 깨우기가 꺼집니다.")) return;
+  $("btnUnregister").addEventListener("click", () => { $("rpConfirm").hidden = false; $("rpUnlockRow").hidden = true; });
+  $("btnUnregCancel").addEventListener("click", () => { $("rpConfirm").hidden = true; $("rpUnlockRow").hidden = false; });
+  $("btnUnregOk").addEventListener("click", async () => {
     const r = await api("DELETE", "/api/remoteplay");
-    if (!r.ok) { say($("rpMsg"), "실패: " + (r.data && r.data.error || r.status), "err"); return; }
-    say($("rpMsg"), "등록을 지웠습니다.", "ok");
-    await loadRemotePlay();
+    if (!r.ok) { result("rpResult", "err", "해제하지 못했습니다", friendly(r.data.error || String(r.status))); return; }
+    renderRP(r.data);
+    result("rpResult", "ok", "등록을 해제했습니다", "다시 쓰려면 새 PIN 으로 등록하세요.");
   });
 
-  $("btnAdapter").addEventListener("click", async () => {
-    say($("actMsg"), "어댑터 확인 중…");
+  // ---------- adapter ----------
+  async function checkAdapter(silent) {
+    adapterChecked = true;
+    if (!silent) result("adapterResult", "busy", "어댑터 확인 중…");
     const r = await api("GET", "/api/adapter");
-    const d = r.data || {};
-    show($("actOut"), d);
-    if (!r.ok) { say($("actMsg"), "확인 실패: " + (d.error || r.status), "err"); return; }
-    if (d.supported) say($("actMsg"), `${d.adapter}: ${d.manufacturer}, 주소 변경 지원 (평점 ${d.rating}/4), BD_ADDR ${d.addr}`, "ok");
-    else say($("actMsg"), `${d.adapter}: ${d.manufacturer}, 주소 변경 미지원. 이 동글로는 깨울 수 없습니다.`, "err");
-  });
+    const d = r.data;
+    if (!r.ok) {
+      result("adapterResult", "err", "어댑터를 열지 못했습니다", friendly(d.error || String(r.status)), null, d.error);
+      badge("b-bt", "err", "어댑터 오류");
+      return;
+    }
+    const facts = [["어댑터", d.adapter], ["칩셋", d.manufacturer], ["주소", d.addr]];
+    if (d.supported) {
+      facts.push(["평점", `${d.rating}/4`]);
+      result("adapterResult", "ok", "깨우기에 쓸 수 있습니다", "", facts);
+      const c = readForm();
+      badge("b-bt", c.controller_addr && c.ps5_addr ? "ok" : "warn", c.controller_addr && c.ps5_addr ? `${d.manufacturer} · 준비됨` : "주소 필요");
+    } else {
+      result("adapterResult", "err", "이 동글로는 깨울 수 없습니다", "칩셋이 블루투스 주소 변경을 지원하지 않습니다.", facts);
+      badge("b-bt", "err", "동글 미지원");
+    }
+  }
+  $("btnAdapter").addEventListener("click", () => checkAdapter(false));
 
-  // ---- WebHID ----
-  const SONY = 0x054C;
-  const DS4 = [0x05C4, 0x09CC];
-  const hidOK = !!navigator.hid;
+  // ---------- WebHID ----------
+  const SONY = 0x054C, DS4 = [0x05C4, 0x09CC];
   if (!window.isSecureContext) {
-    $("hidHint").textContent = "이 페이지는 HTTP 로 열려 있어 WebHID 를 쓸 수 없습니다. HTTPS 주소(기본 포트 8543)로 다시 열고 자체서명 인증서를 한 번 허용하세요.";
+    $("hidHint").textContent = "HTTPS 주소(포트 8543)로 열어야 쓸 수 있습니다.";
     $("btnHid").disabled = true;
-  } else if (!hidOK) {
-    $("hidHint").textContent = "이 브라우저는 WebHID 를 지원하지 않습니다. 크롬 또는 엣지에서 여세요.";
+  } else if (!navigator.hid) {
+    $("hidHint").textContent = "크롬이나 엣지에서만 쓸 수 있습니다.";
     $("btnHid").disabled = true;
   }
   const mac = (b, off) => Array.from({ length: 6 }, (_, i) => b[off + 5 - i].toString(16).padStart(2, "0").toUpperCase()).join(":");
-
   $("btnHid").addEventListener("click", async () => {
-    say($("hidMsg"), "");
+    result("hidResult", null);
     let dev;
     try {
       const devs = await navigator.hid.requestDevice({ filters: [
@@ -354,60 +843,73 @@
         { vendorId: SONY, productId: 0x09CC }, // DualShock 4 v2
       ]});
       dev = devs[0];
-      if (!dev) { say($("hidMsg"), "선택된 장치가 없습니다.", "warn"); return; }
+      if (!dev) return;
       await dev.open();
       const reportId = DS4.includes(dev.productId) ? 0x12 : 0x09;
       const view = await dev.receiveFeatureReport(reportId);
       const b = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
       // Chrome prefixes the report ID; tolerate either layout.
       const off = b[0] === reportId ? 1 : 0;
-      if (b.length < off + 15) { say($("hidMsg"), `보고서가 짧습니다 (${b.length} 바이트).`, "err"); return; }
+      if (b.length < off + 15) { result("hidResult", "err", "읽지 못했습니다", `보고서가 짧습니다 (${b.length} 바이트).`); return; }
       const ctrl = mac(b, off), ps5 = mac(b, off + 9);
       $("controller_addr").value = ctrl;
-      $("ps5_addr").value = ps5;
-      if (ps5 === "00:00:00:00:00:00") say($("hidMsg"), `컨트롤러 ${ctrl} 를 읽었지만 페어링된 PS5 주소가 비어 있습니다. 먼저 PS5 와 블루투스로 페어링하세요.`, "warn");
-      else say($("hidMsg"), `${dev.productName}: 컨트롤러 ${ctrl}, PS5 ${ps5}. 저장 버튼을 눌러 반영하세요.`, "ok");
+      if (ps5 === ZERO) {
+        result("hidResult", "warn", "PS5 와 페어링된 적이 없는 컨트롤러입니다", "PS5 에 USB 로 한 번 연결해 페어링한 뒤 다시 읽으세요.", [["컨트롤러", ctrl]]);
+      } else {
+        $("ps5_addr").value = ps5;
+        result("hidResult", "ok", "두 주소를 채웠습니다", "아래 저장 버튼으로 반영하세요.", [["장치", dev.productName], ["컨트롤러", ctrl], ["PS5", ps5]]);
+      }
+      markDirty(); updateBadges();
     } catch (e) {
-      say($("hidMsg"), "읽기 실패: " + (e && e.message || e), "err");
+      if (e && e.name === "NotFoundError") return; // chooser dismissed
+      result("hidResult", "err", "읽지 못했습니다", String(e && e.message || e));
     } finally {
       if (dev && dev.opened) { try { await dev.close(); } catch (_) {} }
     }
   });
 
-  // ---- logs ----
+  // ---------- logs ----------
   const LEVEL_RANK = { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 };
   const MAX_LINES = 500;
-  let logAfter = 0;
-  const logLines = []; // kept entries, oldest first
-  function esc(s) { return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
+  let logAfter = 0, unseen = 0;
+  const logLines = [];
   function renderLog() {
     const minRank = LEVEL_RANK[$("logLevel").value] ?? 1;
     const view = $("logView");
-    const atBottom = view.scrollTop + view.clientHeight >= view.scrollHeight - 8;
     view.innerHTML = logLines.filter((e) => (LEVEL_RANK[e.level] ?? 1) >= minRank).map((e) => {
       const t = new Date(e.time);
       const ts = t.toLocaleTimeString([], { hour12: false }) + "." + String(t.getMilliseconds()).padStart(3, "0");
-      return `<div class="ln"><span class="t">${ts}</span><span class="lv ${e.level}">${e.level}</span>` +
+      return `<div class="ln"><span class="t">${ts}</span><span class="lv ${esc(e.level)}">${esc(e.level)}</span>` +
         (e.component ? `<span class="c">${esc(e.component)}</span>` : "") +
         `<span>${esc(e.message)}${e.attrs ? ` <span class="a">${esc(e.attrs)}</span>` : ""}</span></div>`;
     }).join("");
-    if (atBottom || $("logFollow").checked) view.scrollTop = view.scrollHeight;
+    if ($("logFollow").checked) view.scrollTop = view.scrollHeight;
   }
   async function pollLogs() {
     if (!$("logFollow").checked && logAfter !== 0) return;
     const r = await api("GET", `/api/logs?after=${logAfter}&limit=200`);
-    if (!r.ok) return;
-    for (const e of r.data.entries) logLines.push(e);
+    if (!r.ok || !r.data.entries) return;
+    const fresh = r.data.entries;
+    for (const e of fresh) logLines.push(e);
     while (logLines.length > MAX_LINES) logLines.shift();
+    if (logAfter !== 0 && !$("p-log").open) {
+      unseen += fresh.filter((e) => (LEVEL_RANK[e.level] ?? 1) >= 2).length;
+      if (unseen) badge("b-log", "warn", `경고 ${unseen}`);
+    }
     logAfter = r.data.next;
-    if (r.data.entries.length) renderLog();
+    if (fresh.length) renderLog();
   }
+  $("p-log").addEventListener("toggle", () => { if ($("p-log").open) { unseen = 0; badge("b-log", "", ""); renderLog(); } });
   $("logLevel").addEventListener("change", renderLog);
   $("btnLogClear").addEventListener("click", () => { logLines.length = 0; renderLog(); });
   $("logFollow").addEventListener("change", () => { if ($("logFollow").checked) pollLogs(); });
   setInterval(pollLogs, 3000);
 
-  loadConfig().then(loadRemotePlay).then(pollLogs);
+  // ---------- start ----------
+  api("GET", "/api/info").then((r) => { if (r.ok) $("ver").textContent = r.data.version === "dev" ? "개발 빌드" : "v" + String(r.data.version).replace(/^v/, ""); });
+  loadConfig().then(() => Promise.all([refreshStatus(true), loadRemotePlay()])).then(pollLogs).then(() => {
+    if ($("p-bt").open) checkAdapter(true);
+  });
 })();
 </script>
 </body>

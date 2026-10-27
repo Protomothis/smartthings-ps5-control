@@ -43,12 +43,9 @@ type Deps struct {
 	// RemotePlay returns a client for the console at host; nil disables the
 	// network wake, standby and registration routes.
 	RemotePlay func(host string) RemotePlayClient
-	// AccountIDFromRedirect and AccountIDFromUserID derive the PSN account
-	// ID the registration needs; LoginURL is the PSN login the settings page
-	// opens to obtain the redirect URL.
-	AccountIDFromRedirect func(ctx context.Context, redirectURL string) (string, error)
-	AccountIDFromUserID   func(userID string) (string, error)
-	LoginURL              string
+	// AccountID turns what the settings page sends (base64 account ID or
+	// numeric PSN user ID) into the base64 form the registration needs.
+	AccountID func(s string) (string, error)
 }
 
 // RealDeps talks to the network and the adapter. The Remote Play fields are
@@ -98,7 +95,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/adapter", s.handleAdapter)
 	mux.HandleFunc("GET /api/wake/last", s.handleLastWake)
 	mux.Handle("GET /api/remoteplay", s.auth.Wrap(http.HandlerFunc(s.handleGetRemotePlay)))
-	mux.Handle("POST /api/remoteplay/account", s.auth.Wrap(http.HandlerFunc(s.handleAccountID)))
 	mux.Handle("POST /api/remoteplay/register", s.auth.Wrap(http.HandlerFunc(s.handleRegister)))
 	mux.Handle("DELETE /api/remoteplay", s.auth.Wrap(http.HandlerFunc(s.handleUnregister)))
 

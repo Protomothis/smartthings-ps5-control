@@ -156,6 +156,22 @@ func TestAccountIDFromUserID(t *testing.T) {
 	}
 }
 
+func TestNormalizeAccountID(t *testing.T) {
+	for in, want := range map[string]string{
+		"1234567890123":    "ywT7cR8BAAA=", // numeric PSN user ID
+		" ywT7cR8BAAA= \n": "ywT7cR8BAAA=", // base64 as pasted
+	} {
+		if got, err := NormalizeAccountID(in); err != nil || got != want {
+			t.Errorf("NormalizeAccountID(%q) = %q, %v; want %q", in, got, err, want)
+		}
+	}
+	for _, bad := range []string{"", "ywT7cR8B", "AAAAAAAAAAAAAAA=", "not an id"} {
+		if got, err := NormalizeAccountID(bad); err == nil {
+			t.Errorf("NormalizeAccountID(%q) = %q, want an error", bad, got)
+		}
+	}
+}
+
 func TestRegistrationValid(t *testing.T) {
 	cases := []struct {
 		reg  Registration

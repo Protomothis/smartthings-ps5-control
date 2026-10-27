@@ -258,12 +258,11 @@ type remotePlayView struct {
 	Nickname     string    `json:"nickname,omitempty"`
 	Mac          string    `json:"mac,omitempty"`
 	RegisteredAt time.Time `json:"registered_at,omitempty"`
-	LoginURL     string    `json:"login_url"`
 	Available    bool      `json:"available"`
 }
 
 func (s *Server) remotePlayView() remotePlayView {
-	v := remotePlayView{LoginURL: s.deps.LoginURL, Available: s.deps.RemotePlay != nil}
+	v := remotePlayView{Available: s.deps.RemotePlay != nil}
 	if rp := s.cfg.Get().RemotePlay; rp.Registered() {
 		v.Registered = true
 		v.AccountID = rp.AccountID
@@ -278,49 +277,9 @@ func (s *Server) handleGetRemotePlay(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.remotePlayView())
 }
 
-// handleAccountID turns a PSN login redirect URL (or a numeric user id) into
-// the base64 account ID the registration needs. The login happens in the
-// user's own browser; only the one-time code from the redirect reaches here.
-func (s *Server) handleAccountID(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		RedirectURL string `json:"redirect_url"`
-		UserID      string `json:"user_id"`
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&in); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
-	}
-	switch {
-	case strings.TrimSpace(in.UserID) != "":
-		if s.deps.AccountIDFromUserID == nil {
-			writeError(w, http.StatusNotImplemented, errors.New("remote play is not available in this build"))
-			return
-		}
-		id, err := s.deps.AccountIDFromUserID(strings.TrimSpace(in.UserID))
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]string{"account_id": id})
-	case strings.TrimSpace(in.RedirectURL) != "":
-		if s.deps.AccountIDFromRedirect == nil {
-			writeError(w, http.StatusNotImplemented, errors.New("remote play is not available in this build"))
-			return
-		}
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-		defer cancel()
-		id, err := s.deps.AccountIDFromRedirect(ctx, strings.TrimSpace(in.RedirectURL))
-		if err != nil {
-			writeError(w, http.StatusBadGateway, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]string{"account_id": id})
-	default:
-		writeError(w, http.StatusBadRequest, errors.New("redirect_url or user_id is required"))
-	}
-}
-
-// handleRegister pairs with the console and stores the credential.
+// handleRegister pairs with the console and stores the credential. An
+// existing registration is locked: it has to be removed first, so a stray
+// form submit cannot replace a working credential.
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		AccountID string `json:"account_id"`
@@ -331,6 +290,10 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c := s.cfg.Get()
+	if c.RemotePlay.Registered() {
+		writeError(w, http.StatusConflict, errors.New("already registered; remove the registration first"))
+		return
+	}
 	if err := c.StatusReady(); err != nil {
 		writeError(w, http.StatusConflict, err)
 		return
@@ -339,9 +302,18 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, errors.New("remote play is not available in this build"))
 		return
 	}
+	account := strings.TrimSpace(in.AccountID)
+	if s.deps.AccountID != nil {
+		id, err := s.deps.AccountID(account)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		account = id
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
-	rp, err := s.deps.RemotePlay(c.PS5IP).Register(ctx, strings.TrimSpace(in.AccountID), strings.TrimSpace(in.PIN))
+	rp, err := s.deps.RemotePlay(c.PS5IP).Register(ctx, account, strings.TrimSpace(in.PIN))
 	if err != nil {
 		s.logc("remoteplay").Warn("registration failed", "err", err.Error())
 		writeError(w, http.StatusBadGateway, err)

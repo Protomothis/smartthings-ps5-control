@@ -94,19 +94,13 @@ func rpFixture(t *testing.T, registered bool, states ...discovery.State) (*httpt
 	script := &stateScript{states: states}
 	deps.Probe = script.probe
 	deps.RemotePlay = func(host string) RemotePlayClient { return rp }
-	deps.AccountIDFromUserID = func(userID string) (string, error) {
-		if userID != "1234567890123" {
-			return "", errors.New("bad user id")
+	deps.AccountID = func(s string) (string, error) {
+		switch s {
+		case "1234567890123", "ywT7cR8BAAA=":
+			return "ywT7cR8BAAA=", nil
 		}
-		return "ywT7cR8BAAA=", nil
+		return "", errors.New("bad account id")
 	}
-	deps.AccountIDFromRedirect = func(ctx context.Context, u string) (string, error) {
-		if !strings.Contains(u, "code=") {
-			return "", errors.New("no code")
-		}
-		return "ywT7cR8BAAA=", nil
-	}
-	deps.LoginURL = "https://example.invalid/login"
 	s := New(store, deps, Auth{User: "admin", Pass: "secret"}, "test", slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 	s.timing = timing{pollInterval: 10 * time.Millisecond, networkWakeTimeout: 200 * time.Millisecond, standbyTimeout: 200 * time.Millisecond}
 	ts := httptest.NewServer(s.Handler())
@@ -260,26 +254,23 @@ func TestSecretGuardsActionsOnly(t *testing.T) {
 func TestRegisterFlowAndRedaction(t *testing.T) {
 	ts, store, rp, _ := rpFixture(t, false, discovery.StateOn)
 	code, m := call(t, ts, "GET", "/api/remoteplay", "", nil, true)
-	if code != 200 || m["registered"] != false || m["login_url"] != "https://example.invalid/login" || m["available"] != true {
+	if code != 200 || m["registered"] != false || m["available"] != true {
 		t.Fatalf("%d %v", code, m)
 	}
-	code, m = call(t, ts, "POST", "/api/remoteplay/account", `{"user_id":"1234567890123"}`, nil, true)
-	if code != 200 || m["account_id"] != "ywT7cR8BAAA=" {
-		t.Fatalf("%d %v", code, m)
+	if code, _ := call(t, ts, "POST", "/api/remoteplay/register", `{"account_id":"nope","pin":"12345678"}`, nil, true); code != 400 {
+		t.Fatalf("bad account id = %d", code)
 	}
-	code, m = call(t, ts, "POST", "/api/remoteplay/account", `{"redirect_url":"https://remoteplay.dl.playstation.net/remoteplay/redirect?code=abc"}`, nil, true)
-	if code != 200 || m["account_id"] != "ywT7cR8BAAA=" {
-		t.Fatalf("%d %v", code, m)
-	}
-	if code, _ := call(t, ts, "POST", "/api/remoteplay/account", `{}`, nil, true); code != 400 {
-		t.Fatalf("empty account request = %d", code)
-	}
-	code, m = call(t, ts, "POST", "/api/remoteplay/register", `{"account_id":"ywT7cR8BAAA=","pin":"12345678"}`, nil, true)
-	if code != 200 || m["registered"] != true || m["nickname"] != "PS5-123" || rp.lastPIN != "12345678" {
+	// the numeric PSN user ID is accepted and stored in base64
+	code, m = call(t, ts, "POST", "/api/remoteplay/register", `{"account_id":"1234567890123","pin":"12345678"}`, nil, true)
+	if code != 200 || m["registered"] != true || m["nickname"] != "PS5-123" || m["account_id"] != "ywT7cR8BAAA=" || rp.lastPIN != "12345678" {
 		t.Fatalf("%d %v", code, m)
 	}
 	if !store.Get().RemotePlay.Registered() {
 		t.Fatal("registration not stored")
+	}
+	// a registration is locked until it is removed
+	if code, _ := call(t, ts, "POST", "/api/remoteplay/register", `{"account_id":"ywT7cR8BAAA=","pin":"87654321"}`, nil, true); code != 409 || rp.lastPIN != "12345678" {
+		t.Fatalf("second registration = %d (pin %s)", code, rp.lastPIN)
 	}
 	// the settings form must neither see the keys nor be able to clobber them
 	code, m = call(t, ts, "GET", "/api/config", "", nil, true)
@@ -297,13 +288,13 @@ func TestRegisterFlowAndRedaction(t *testing.T) {
 	if store.Get().APISecret != "x" {
 		t.Fatal("api secret not saved")
 	}
-	rp.regErr = errors.New("80108b09")
-	if code, _ := call(t, ts, "POST", "/api/remoteplay/register", `{"account_id":"a","pin":"00000000"}`, nil, true); code != 502 {
-		t.Fatalf("failed registration = %d", code)
-	}
 	code, m = call(t, ts, "DELETE", "/api/remoteplay", "", nil, true)
 	if code != 200 || m["registered"] != false || store.Get().RemotePlay != nil {
 		t.Fatalf("%d %v", code, m)
+	}
+	rp.regErr = errors.New("80108b09")
+	if code, _ := call(t, ts, "POST", "/api/remoteplay/register", `{"account_id":"ywT7cR8BAAA=","pin":"00000000"}`, nil, true); code != 502 || store.Get().RemotePlay != nil {
+		t.Fatalf("failed registration = %d", code)
 	}
 	// registration routes are behind basic auth
 	if code, _ := call(t, ts, "POST", "/api/remoteplay/register", `{"account_id":"a","pin":"00000000"}`, nil, false); code != 401 {

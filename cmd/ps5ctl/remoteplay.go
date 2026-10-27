@@ -67,15 +67,13 @@ func (a rpAdapter) Standby(ctx context.Context, rp config.RemotePlay) error {
 // wireRemotePlay fills the Remote Play fields of the server deps.
 func wireRemotePlay(deps *server.Deps, logf func(string, ...any)) {
 	deps.RemotePlay = newRemotePlay(logf)
-	deps.AccountIDFromRedirect = remoteplay.AccountIDFromRedirectURL
-	deps.AccountIDFromUserID = remoteplay.AccountIDFromUserID
-	deps.LoginURL = remoteplay.LoginURL
+	deps.AccountID = remoteplay.NormalizeAccountID
 }
 
 // cmdRP is the CLI for hardware validation of the Remote Play path without
 // the settings page. It reads and writes the same config.json the server uses.
 //
-//	ps5ctl rp account  --user-id 1234567890123 | --redirect-url <url>
+//	ps5ctl rp account  --user-id 1234567890123
 //	ps5ctl rp register --data /data --account <id> --pin 12345678
 //	ps5ctl rp wake     --data /data
 //	ps5ctl rp standby  --data /data
@@ -89,36 +87,23 @@ func cmdRP(ctx context.Context, args []string) int {
 	dataDir := fs.String("data", envOr("PS5_DATA", "/data"), "data directory with config.json (env PS5_DATA)")
 	ip := fs.String("ip", "", "PS5 IP (default: ps5_ip from config.json)")
 	userID := fs.String("user-id", "", "account: numeric PSN user id")
-	redirect := fs.String("redirect-url", "", "account: the URL the PSN login redirected to")
-	account := fs.String("account", "", "register: base64 account ID (from `rp account`)")
+	account := fs.String("account", "", "register: base64 account ID or numeric PSN user id")
 	pin := fs.String("pin", "", "register: 8-digit PIN from Settings > System > Remote Play > Link Device")
 	_ = fs.Parse(rest) // ExitOnError: never returns an error
 
 	logf := func(f string, a ...any) { fmt.Fprintf(os.Stderr, time.Now().Format("15:04:05.000 ")+f+"\n", a...) }
 
 	if sub == "account" {
-		switch {
-		case *userID != "":
-			id, err := remoteplay.AccountIDFromUserID(*userID)
-			if err != nil {
-				return fail(err)
-			}
-			fmt.Println(id)
-			return 0
-		case *redirect != "":
-			cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			defer cancel()
-			id, err := remoteplay.AccountIDFromRedirectURL(cctx, *redirect)
-			if err != nil {
-				return fail(err)
-			}
-			fmt.Println(id)
-			return 0
-		default:
-			fmt.Fprintln(os.Stderr, "open this URL in a browser, sign in, and paste the final URL with --redirect-url:")
-			fmt.Println(remoteplay.LoginURL)
+		if *userID == "" {
+			fs.Usage()
 			return 1
 		}
+		id, err := remoteplay.AccountIDFromUserID(*userID)
+		if err != nil {
+			return fail(err)
+		}
+		fmt.Println(id)
+		return 0
 	}
 
 	store, err := config.Open(*dataDir)
@@ -142,9 +127,13 @@ func cmdRP(ctx context.Context, args []string) int {
 			fs.Usage()
 			return 1
 		}
+		id, err := remoteplay.NormalizeAccountID(*account)
+		if err != nil {
+			return fail(err)
+		}
 		cctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
-		reg, err := client.Register(cctx, *account, *pin)
+		reg, err := client.Register(cctx, id, *pin)
 		if err != nil {
 			return fail(err)
 		}

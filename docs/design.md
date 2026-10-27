@@ -113,7 +113,7 @@ SSDP 검색, push 구독, 프로필 생성기, i18n — 이 드라이버는 표�
 - **출처**: dhleong/playactor (ISC) 의 PS5 부분만 `internal/remoteplay` 로 이식. 키 테이블은 `keys_ps5.go` 로 생성.
   검증은 playactor 의 테스트 벡터(chiaki 가 만든 등록 본문 포함)와 playactor 를 직접 실행해 뽑은 세션 벡터
   (`scratchpad` 의 `vectors.ts`), 그리고 가짜 콘솔로. 실기 PS5 검증은 사용자 몫.
-- **흐름**: 등록(설정 페이지: PSN 로그인 → 리다이렉트 URL 의 코드로 계정 ID → PS5 의 PIN → `POST /sie/ps5/rp/sess/rgst`)
+- **흐름**: 등록(설정 페이지: 계정 ID + PS5 의 PIN → `POST /sie/ps5/rp/sess/rgst`)
   → 등록 키·RP-Key 를 `config.json` 의 `remote_play` 에 저장. 깨우기는 UDP 9302 `WAKEUP`, 휴식 모드는
   `/sess/init` → `/sess/ctrl` 세션에서 Login 후 Standby 패킷.
 - **서버 통합** (`internal/server/remoteplay.go`): 서버는 프로토콜 패키지를 직접 모르고 `RemotePlayClient` 인터페이스
@@ -127,8 +127,12 @@ SSDP 검색, push 구독, 프로필 생성기, i18n — 이 드라이버는 표�
   `/status` 는 열어 둔다. 드라이버 환경설정 `secret`.
 - **등록 키 보호**: `GET /api/config` 는 `regist_key`/`rp_key` 를 `***` 로, `PUT /api/config` 는 `remote_play` 를
   무시하고 저장된 것을 유지(`Store.Set`). 등록·해제는 `/api/remoteplay/*` (basic auth) 로만.
-- **PSN 로그인**: 서버가 PSN 비밀번호를 받지 않는다. 사용자 브라우저에서 로그인한 뒤 리다이렉트 URL 을 붙여넣으면
-  서버가 코드를 토큰과 교환해 `user_id` 만 읽는다. 숫자 계정 ID 를 직접 넣는 길도 둔다.
+- **계정 ID 는 직접 입력 (2026-10-27)**: 처음엔 PSN OAuth(리다이렉트 URL 의 코드 → 토큰 → `user_id`)를 뒀지만
+  뺐다. 소니 인증 서버와 Remote Play 앱의 공개 client secret 에 기대는 경로가 서버에 남고, 한 번 하는 등록에 비해
+  화면이 복잡했다. 이제 base64 계정 ID(12자) 또는 숫자 `user_id` 를 받아 `remoteplay.NormalizeAccountID` 가 base64 로
+  맞춘다. 서버는 PSN 과 전혀 통신하지 않는다.
+- **등록 잠금**: 등록돼 있으면 `POST /api/remoteplay/register` 는 409. 바꾸려면 `DELETE /api/remoteplay` 로 먼저
+  해제한다. 설정 페이지는 등록 정보를 읽기 전용으로 보이고 해제는 한 번 더 확인한다.
 - **드라이버**: 끄기 = `POST /standby`(즉시 off, 실패 시 되돌림), `offAction` 환경설정(`standby`/`ignore`),
   `secret` 환경설정. `/wake` 의 네트워크 경로는 드라이버가 몰라도 된다.
 - 실측 대기: 등록 검색(UDP 9295 바인드)이 호스트 네트워크 컨테이너에서 되는지, 세션 `ctrl` 응답 뒤 패킷 스트림,
