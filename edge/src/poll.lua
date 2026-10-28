@@ -166,7 +166,7 @@ function poll.once(_driver, device, deps)
       end
     end
     set_online(device, false)
-    poll.emit_rows(device, rows.from_failure(kind, field(device, poll.F_LAST_SEEN), poll.waking(device, deps)), false, deps)
+    poll.emit_rows(device, rows.from_failure(kind, field(device, poll.F_LAST_SEEN), poll.waking(device, deps), now_of(deps)), false, deps)
     -- The server may have moved (DHCP): look for it again, within the
     -- cooldown, unless the address is pinned by preference.
     if kind == "unreachable" then
