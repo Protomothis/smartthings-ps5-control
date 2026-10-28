@@ -141,7 +141,7 @@ end
 
 --- All rows for a successful status. `body` is the decoded /status JSON,
 --- `now` the epoch, `waking` the driver's wake window.
-function rows.from_status(body, now, waking, driver_version)
+function rows.from_status(body, _now, waking, driver_version)
   body = body or {}
   local srv = body.server or {}
   local seen = rows.clock_of(body.checked_at)

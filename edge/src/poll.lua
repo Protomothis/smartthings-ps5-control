@@ -151,7 +151,7 @@ local function set_online(device, online)
 end
 
 --- One poll. Returns the `/status` state, or nil with the error kind.
-function poll.once(_driver, device, deps)
+function poll.once(driver, device, deps)
   deps = deps or {}
   local log = logger()
   local ok, body, kind = client.get_status(device, deps)
@@ -170,7 +170,7 @@ function poll.once(_driver, device, deps)
     -- The server may have moved (DHCP): look for it again, within the
     -- cooldown, unless the address is pinned by preference.
     if kind == "unreachable" then
-      pcall(discovery.research, _driver, device, deps)
+      pcall(discovery.research, driver, device, deps)
     end
     return nil, kind
   end
