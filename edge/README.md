@@ -21,7 +21,7 @@ ps5-control 서버를 위한 SmartThings Edge 드라이버다. 허브 안에서 
 
 ## 설치
 
-1. 채널 초대 링크를 열고 [Enroll] → 허브를 고른다 (채널은 아직 만들지 않았다)
+1. 채널 **Protomothis** 초대 링크 <https://bestow-regional.api.smartthings.com/invite/Kr2zNWYgpp2A> 를 열고 [Enroll] → 허브를 고른다
 2. 채널의 **SmartThings PS5 Control** 을 [Install] 한다
 3. 서버 컨테이너가 켜진 상태에서 SmartThings 앱 **[+] → 기기 추가 → 주변 기기 검색** → 서버가 답하면 주소가 채워진 `PS5` 장치가 생긴다. 허브와 서버는 같은 서브넷이어야 한다(공유기는 멀티캐스트를 넘기지 않는다)
 4. 장치 설정에 서버 설정 페이지에서 정한 **API 시크릿**을 넣는다. 검색이 안 되는 환경이면 **서버 주소**(예: `192.168.1.50`)를 직접 넣는다. 포트는 기본 8580

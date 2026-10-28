@@ -4,8 +4,8 @@
 #   https://<server>:8543  settings page; self-signed cert, required for WebHID
 services:
   ps5:
-    build: .
-    image: ghcr.io/protomothis/smartthings-ps5-control:dev
+    build: .   # `docker compose up -d --build` 로 직접 빌드; 없으면 아래 이미지를 받는다
+    image: ghcr.io/protomothis/smartthings-ps5-control:latest
     container_name: ps5-control
     network_mode: host
     cap_add:

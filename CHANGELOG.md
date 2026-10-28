@@ -2,7 +2,7 @@
 
 서버 컨테이너(`ps5ctl`)의 변경 이력입니다. SmartThings Edge 드라이버는 버전이 따로 돌므로 [edge/CHANGELOG.md](edge/CHANGELOG.md)에 기록합니다.
 
-## [Unreleased]
+## [v0.1.0] - 2026-10-28
 
 ### 추가
 
@@ -13,5 +13,5 @@
 - **API 시크릿** — 설정 페이지의 API 시크릿을 정하면 `POST /wake` · `POST /standby` 는 `X-PS5-Secret` 헤더가 맞아야 합니다. `GET /status` 는 그대로 열려 있습니다
 - **`GET /status` 의 `server` 블록** — 드라이버 화면용으로 서버 버전 · 설치 ID · 블루투스 동글 확인 결과(칩셋, 지원 여부, 주소 설정 여부; 10분마다 백그라운드로 다시 확인) · Remote Play 등록 여부 · 마지막 깨우기/휴식 모드 결과 · 깨우는 중 여부를 함께 돌려줍니다
 - **SSDP 검색 응답** — 컨테이너가 UDP 1900 의 SSDP 검색(`urn:smartthings-ps5-control:device:ps5:1`)에 답해, SmartThings 앱의 "주변 기기 검색"이 서버 주소를 손으로 넣지 않고 장치를 만듭니다. 응답에는 첫 실행 때 만든 설치 ID(`instance_id`)와 HTTP 포트만 들어가고, `GET /ssdp.json` 이 같은 내용을 보여 줍니다. `PS5_SSDP=off` 로 끕니다
-- **로그** — 모든 줄이 `시각 레벨 구성요소: 메시지 key=value` 꼴로 컨테이너 로그와 `/data/logs/ps5ctl.log` 에 같이 남고, 파일은 1 MB 마다 회전해 3개(최대 3 MB)까지만 둡니다. 설정 페이지의 로그 패널이 3초마다 새 줄을 받아 레벨별로 보여 주고 파일을 내려받습니다. `PS5_LOG_LEVEL=debug` 면 모든 HTTP 요청도 남습니다
+- **로그** — 모든 줄이 `시각 레벨 구성요소: 메시지 key=value` 꼴로 컨테이너 로그와 `/data/logs/ps5ctl.log` 에 같이 남고, 파일은 1 MB 마다 회전해 3개(최대 3 MB)까지만 둡니다. 설정 페이지의 로그 패널이 3초마다 새 줄을 받아 레벨별로 보여 주고(시각은 브라우저 언어와 상관없이 `HH:MM:SS.mmm`) 파일을 내려받습니다. `PS5_LOG_LEVEL=debug` 면 모든 HTTP 요청도 남습니다
 - **컨테이너** — scratch 이미지 하나(`ps5ctl serve`), 호스트 네트워크와 `NET_ADMIN` · `NET_RAW` 만 필요합니다

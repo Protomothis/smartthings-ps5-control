@@ -878,7 +878,7 @@
     const view = $("logView");
     view.innerHTML = logLines.filter((e) => (LEVEL_RANK[e.level] ?? 1) >= minRank).map((e) => {
       const t = new Date(e.time);
-      const ts = t.toLocaleTimeString([], { hour12: false }) + "." + String(t.getMilliseconds()).padStart(3, "0");
+      const ts = [t.getHours(), t.getMinutes(), t.getSeconds()].map((n) => String(n).padStart(2, "0")).join(":") + "." + String(t.getMilliseconds()).padStart(3, "0");
       return `<div class="ln"><span class="t">${ts}</span><span class="lv ${esc(e.level)}">${esc(e.level)}</span>` +
         (e.component ? `<span class="c">${esc(e.component)}</span>` : "") +
         `<span>${esc(e.message)}${e.attrs ? ` <span class="a">${esc(e.attrs)}</span>` : ""}</span></div>`;

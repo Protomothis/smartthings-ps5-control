@@ -2,7 +2,7 @@
 
 허브 안에서 도는 Edge 드라이버(`edge/`)의 변경 이력입니다. 드라이버는 서버 컨테이너와 버전이 따로 돌고(`src/driver_version.lua`, 태그 `edge-vX.Y.Z`), 사용자는 GitHub 릴리스가 아니라 SmartThings 채널을 통해 자동으로 업데이트를 받습니다. 서버의 이력은 [../CHANGELOG.md](../CHANGELOG.md)에 있습니다.
 
-## [Unreleased]
+## [0.1.0] - 2026-10-28
 
 ### 추가
 
