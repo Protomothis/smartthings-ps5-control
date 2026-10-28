@@ -141,13 +141,13 @@ func Wake(ctx context.Context, o Options) (res Result, err error) {
 		log("%s: bring-up: %v (continuing)", o.Adapter, err)
 	}
 
-	ver, strat, err := spoof.Detect(open)
+	ver, strategy, err := spoof.Detect(open)
 	res.Version = ver
 	if err != nil {
 		return res, err
 	}
-	res.Vendor = strat.Vendor
-	log("%s: %s (manufacturer 0x%04X, rating %d/4)", o.Adapter, strat.Vendor, ver.Manufacturer, strat.Rating)
+	res.Vendor = strategy.Vendor
+	log("%s: %s (manufacturer 0x%04X, rating %d/4)", o.Adapter, strategy.Vendor, ver.Manufacturer, strategy.Rating)
 
 	orig, err := readAddr(open)
 	if err != nil {
@@ -162,7 +162,7 @@ func Wake(ctx context.Context, o Options) (res Result, err error) {
 			res.Restored = true
 			return
 		}
-		if err := strat.Apply(open, orig, log); err != nil {
+		if err := strategy.Apply(open, orig, log); err != nil {
 			log("%s: RESTORE FAILED, adapter still has %s: %v", o.Adapter, o.Controller, err)
 			return
 		}
@@ -183,7 +183,7 @@ func Wake(ctx context.Context, o Options) (res Result, err error) {
 			}
 		}
 
-		if err := strat.Apply(open, o.Controller, log); err != nil {
+		if err := strategy.Apply(open, o.Controller, log); err != nil {
 			lastErr = err
 			log("attempt %d: spoof failed: %v", attempt, err)
 			continue
@@ -304,7 +304,7 @@ func Inspect(adapter string) (AdapterInfo, error) {
 	}
 	open := hci.OpenerFor(dev)
 	info := AdapterInfo{Adapter: adapter}
-	ver, strat, err := spoof.Detect(open)
+	ver, strategy, err := spoof.Detect(open)
 	info.Version = ver
 	info.Manufacturer = spoof.ManufacturerName(ver.Manufacturer)
 	if err != nil && !errors.Is(err, spoof.ErrUnsupportedAdapter) {
@@ -312,9 +312,9 @@ func Inspect(adapter string) (AdapterInfo, error) {
 	}
 	if err == nil {
 		info.Supported = true
-		info.Rating = strat.Rating
-		info.Opcode = strat.Opcode()
-		info.Notes = strat.Notes
+		info.Rating = strategy.Rating
+		info.Opcode = strategy.Opcode()
+		info.Notes = strategy.Notes
 	} else {
 		info.Notes = "no BD_ADDR spoof strategy for this chipset"
 	}

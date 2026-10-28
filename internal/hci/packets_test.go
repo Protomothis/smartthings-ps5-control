@@ -25,6 +25,20 @@ func TestCreateConnectionPacket(t *testing.T) {
 	}
 }
 
+// A 14-byte option made setsockopt(HCI_FILTER) fail with EINVAL on kernel 7.0.
+func TestEventFilter(t *testing.T) {
+	want := []byte{
+		0x10, 0x00, 0x00, 0x00, // type_mask: 1<<PktEvent
+		0xFF, 0xFF, 0xFF, 0xFF, // event_mask[0]: codes 0..31
+		0xFF, 0xFF, 0xFF, 0xFF, // event_mask[1]: codes 32..63
+		0x00, 0x00, // opcode: any
+		0x00, 0x00, // tail padding of struct hci_ufilter
+	}
+	if got := EventFilter(); !bytes.Equal(got, want) {
+		t.Fatalf("got % X\nwant % X", got, want)
+	}
+}
+
 func TestParseEvents(t *testing.T) {
 	// Command Complete for Read_BD_ADDR: num_pkts=1, opcode 0x1009, status 0, addr LE
 	raw := []byte{0x04, 0x0E, 0x0A, 0x01, 0x09, 0x10, 0x00, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11}

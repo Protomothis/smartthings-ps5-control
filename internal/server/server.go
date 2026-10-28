@@ -17,15 +17,18 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/protomothis/smartthings-ps5-control/internal/config"
 	"github.com/protomothis/smartthings-ps5-control/internal/discovery"
 	"github.com/protomothis/smartthings-ps5-control/internal/hci"
+	"github.com/protomothis/smartthings-ps5-control/internal/logx"
 	"github.com/protomothis/smartthings-ps5-control/internal/spoof"
+	"github.com/protomothis/smartthings-ps5-control/internal/ssdp"
 	"github.com/protomothis/smartthings-ps5-control/internal/wake"
 )
 
@@ -37,9 +40,19 @@ type Deps struct {
 	Probe   func(ctx context.Context, host string, timeout time.Duration) (discovery.Status, error)
 	Wake    func(ctx context.Context, o wake.Options) (wake.Result, error)
 	Inspect func(adapter string) (wake.AdapterInfo, error)
+
+	// RemotePlay returns a client for the console at host; nil disables the
+	// network wake, standby and registration routes.
+	RemotePlay func(host string) RemotePlayClient
+	// AccountID turns what the settings page sends (base64 account ID or
+	// numeric PSN user ID) into the base64 form the registration needs.
+	AccountID func(s string) (string, error)
+	// HTTPPort is the plain HTTP port the SSDP description advertises.
+	HTTPPort int
 }
 
-// RealDeps talks to the network and the adapter.
+// RealDeps talks to the network and the adapter. The Remote Play fields are
+// wired by cmd/ps5ctl, which adapts the protocol package.
 func RealDeps() Deps {
 	return Deps{Probe: discovery.Probe, Wake: wake.Wake, Inspect: wake.Inspect}
 }
@@ -49,12 +62,16 @@ type Server struct {
 	cfg     *config.Store
 	deps    Deps
 	auth    Auth
-	log     *log.Logger
+	log     *slog.Logger
+	hub     *logx.Hub
 	version string
 
 	wakeMu  sync.Mutex
 	lastMu  sync.Mutex
 	lastRes *wakeRecord
+	timing  timing
+	adapter adapterCache
+	actions actions
 }
 
 type wakeRecord struct {
@@ -63,12 +80,12 @@ type wakeRecord struct {
 	Error  string      `json:"error,omitempty"`
 }
 
-// New builds a Server. logger may be nil.
-func New(cfg *config.Store, deps Deps, auth Auth, version string, logger *log.Logger) *Server {
+// New builds a Server. logger may be nil; hub (optional) backs GET /api/logs.
+func New(cfg *config.Store, deps Deps, auth Auth, version string, logger *slog.Logger, hub *logx.Hub) *Server {
 	if logger == nil {
-		logger = log.Default()
+		logger = slog.Default()
 	}
-	return &Server{cfg: cfg, deps: deps, auth: auth, log: logger, version: version}
+	return &Server{cfg: cfg, deps: deps, auth: auth, log: logger, hub: hub, version: version, timing: defaultTiming()}
 }
 
 // Handler returns the routed http.Handler.
@@ -78,9 +95,13 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": s.version})
 	})
 	mux.HandleFunc("GET /status", s.handleStatus)
-	mux.HandleFunc("POST /wake", s.handleWake)
+	mux.HandleFunc("POST /wake", s.secretRequired(s.handleWake))
+	mux.HandleFunc("POST /standby", s.secretRequired(s.handleStandby))
 	mux.HandleFunc("GET /api/adapter", s.handleAdapter)
 	mux.HandleFunc("GET /api/wake/last", s.handleLastWake)
+	mux.Handle("GET /api/remoteplay", s.auth.Wrap(http.HandlerFunc(s.handleGetRemotePlay)))
+	mux.Handle("POST /api/remoteplay/register", s.auth.Wrap(http.HandlerFunc(s.handleRegister)))
+	mux.Handle("DELETE /api/remoteplay", s.auth.Wrap(http.HandlerFunc(s.handleUnregister)))
 
 	// http.FileServer would redirect /index.html to "./", so serve the bytes.
 	page, err := fs.ReadFile(static, "static/index.html")
@@ -96,6 +117,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/config", s.auth.Wrap(http.HandlerFunc(s.handleGetConfig)))
 	mux.Handle("PUT /api/config", s.auth.Wrap(http.HandlerFunc(s.handlePutConfig)))
 	mux.Handle("GET /api/info", s.auth.Wrap(http.HandlerFunc(s.handleInfo)))
+	mux.HandleFunc("GET "+ssdp.DescriptionPath, s.handleSSDPDescription)
+	mux.Handle("GET /api/logs", s.auth.Wrap(http.HandlerFunc(s.handleLogs)))
+	mux.Handle("GET /api/logs/download", s.auth.Wrap(http.HandlerFunc(s.handleLogsDownload)))
 	return s.logging(mux)
 }
 
@@ -104,8 +128,8 @@ func (s *Server) logging(next http.Handler) http.Handler {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, code: http.StatusOK}
 		next.ServeHTTP(rec, r)
-		if r.URL.Path != "/healthz" {
-			s.log.Printf("%s %s %d %s %s", r.Method, r.URL.Path, rec.code, time.Since(start).Round(time.Millisecond), r.RemoteAddr)
+		if r.URL.Path != "/healthz" && !strings.HasPrefix(r.URL.Path, "/api/logs") {
+			s.accessLog(r, rec.code, time.Since(start))
 		}
 	})
 }
@@ -133,8 +157,9 @@ func writeError(w http.ResponseWriter, code int, err error) {
 // statusResponse is what GET /status returns.
 type statusResponse struct {
 	discovery.Status
-	CheckedAt time.Time `json:"checked_at"`
-	Host      string    `json:"host"`
+	CheckedAt time.Time  `json:"checked_at"`
+	Host      string     `json:"host"`
+	Server    serverInfo `json:"server"`
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -147,67 +172,23 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	st, err := s.deps.Probe(ctx, c.PS5IP, c.StatusTimeout())
 	if err != nil {
+		// The access log only carries the status code; the reason matters here.
+		s.logc("status").Warn("probe failed", "host", c.PS5IP, "err", err)
 		writeError(w, http.StatusBadGateway, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, statusResponse{Status: st, CheckedAt: time.Now(), Host: c.PS5IP})
+	writeJSON(w, http.StatusOK, statusResponse{Status: st, CheckedAt: time.Now(), Host: c.PS5IP, Server: s.info(c, st.State == discovery.StateOn)})
 }
 
-// wakeResponse is what POST /wake returns.
-type wakeResponse struct {
-	wake.Result
-	Error string `json:"error,omitempty"`
-}
-
-func (s *Server) handleWake(w http.ResponseWriter, r *http.Request) {
-	c := s.cfg.Get()
-	if err := c.WakeReady(); err != nil {
-		writeError(w, http.StatusConflict, err)
-		return
-	}
-	if !s.wakeMu.TryLock() {
-		writeError(w, http.StatusLocked, errors.New("a wake is already in progress"))
-		return
-	}
-	defer s.wakeMu.Unlock()
-
-	// Finish the spoof/page/restore sequence even if the client goes away;
-	// an aborted sequence could leave the adapter with the spoofed address.
-	budget := time.Duration(c.WakeAttempts)*(c.WakeTimeout()+c.WakeRetryDelay()) + 15*time.Second
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), budget)
-	defer cancel()
-
-	res, err := s.deps.Wake(ctx, wake.Options{
-		Adapter:    c.HCI,
-		Controller: c.ControllerAddr,
-		Console:    c.PS5Addr,
-		Timeout:    c.WakeTimeout(),
-		Attempts:   c.WakeAttempts,
-		RetryDelay: c.WakeRetryDelay(),
-		Log:        func(f string, a ...any) { s.log.Printf("wake: "+f, a...) },
-	})
-	rec := &wakeRecord{At: time.Now(), Result: res}
-	if err != nil {
-		rec.Error = err.Error()
-	}
-	s.lastMu.Lock()
-	s.lastRes = rec
-	s.lastMu.Unlock()
-
-	resp := wakeResponse{Result: res, Error: rec.Error}
+// bluetoothErrorCode maps a failed Bluetooth wake to an HTTP status.
+func bluetoothErrorCode(err error) int {
 	switch {
 	case errors.Is(err, spoof.ErrUnsupportedAdapter):
-		writeJSON(w, http.StatusNotImplemented, resp)
+		return http.StatusNotImplemented
 	case errors.Is(err, hci.ErrPermission):
-		writeJSON(w, http.StatusInternalServerError, resp)
-	case err != nil:
-		writeJSON(w, http.StatusBadGateway, resp)
-	case res.Outcome == wake.OutcomeSuccess:
-		writeJSON(w, http.StatusOK, resp)
-	case res.Outcome == wake.OutcomeTimeout:
-		writeJSON(w, http.StatusGatewayTimeout, resp)
+		return http.StatusInternalServerError
 	default:
-		writeJSON(w, http.StatusBadGateway, resp)
+		return http.StatusBadGateway
 	}
 }
 
@@ -237,7 +218,7 @@ func (s *Server) handleAdapter(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.cfg.Get())
+	writeJSON(w, http.StatusOK, s.cfg.Get().Redacted())
 }
 
 func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
@@ -252,8 +233,8 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	s.log.Printf("config saved: ps5=%s ctrl=%s ps5bt=%s hci=%s", c.PS5IP, c.ControllerAddr, c.PS5Addr, c.HCI)
-	writeJSON(w, http.StatusOK, s.cfg.Get())
+	s.logc("config").Info("settings saved", "ps5_ip", c.PS5IP, "controller", c.ControllerAddr.String(), "ps5_bt", c.PS5Addr.String(), "hci", c.HCI, "secret_set", c.APISecret != "")
+	writeJSON(w, http.StatusOK, s.cfg.Get().Redacted())
 }
 
 func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
@@ -261,5 +242,31 @@ func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 		"version":     s.version,
 		"config_path": s.cfg.Path(),
 		"tls":         r.TLS != nil,
+		"instance_id": s.cfg.Get().InstanceID,
+	})
+}
+
+// SSDPInfo is what the discovery responder advertises: the instance id, a
+// label for the new device (the console's Remote Play nickname once
+// registered) and the HTTP port.
+func (s *Server) SSDPInfo() ssdp.Info {
+	c := s.cfg.Get()
+	name := "PS5"
+	if c.RemotePlay.Registered() && c.RemotePlay.Nickname != "" {
+		name = c.RemotePlay.Nickname
+	}
+	return ssdp.Info{ID: c.InstanceID, Name: name, Version: s.version, Port: s.deps.HTTPPort}
+}
+
+// handleSSDPDescription is the LOCATION of the SSDP answer: unauthenticated
+// on purpose, it carries only what the driver needs to create the device.
+func (s *Server) handleSSDPDescription(w http.ResponseWriter, r *http.Request) {
+	info := s.SSDPInfo()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id":      info.ID,
+		"name":    info.Name,
+		"version": info.Version,
+		"port":    info.Port,
+		"st":      ssdp.ST,
 	})
 }

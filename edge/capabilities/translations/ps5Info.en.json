@@ -1,0 +1,16 @@
+{
+  "tag": "en",
+  "label": "PS5 connection",
+  "attributes": {
+    "summary": {
+      "label": "Status"
+    },
+    "connection": {
+      "label": "Server connection"
+    },
+    "lastSeen": {
+      "label": "Last seen"
+    }
+  },
+  "commands": {}
+}

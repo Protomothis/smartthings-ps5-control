@@ -42,7 +42,7 @@ func EnsureCert(dir string, extraHosts []string) (tls.Certificate, bool, error) 
 	if err := os.WriteFile(keyPath, keyPEM, 0o600); err != nil {
 		return tls.Certificate{}, false, err
 	}
-	if err := os.WriteFile(certPath, certPEM, 0o644); err != nil {
+	if err := os.WriteFile(certPath, certPEM, 0o600); err != nil {
 		return tls.Certificate{}, false, err
 	}
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)

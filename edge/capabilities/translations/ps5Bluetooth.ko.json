@@ -1,0 +1,13 @@
+{
+  "tag": "ko",
+  "label": "PS5 블루투스",
+  "attributes": {
+    "summary": {
+      "label": "블루투스 동글"
+    },
+    "state": {
+      "label": "블루투스"
+    }
+  },
+  "commands": {}
+}

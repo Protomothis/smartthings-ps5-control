@@ -1,0 +1,13 @@
+{
+  "tag": "en",
+  "label": "PS5 Bluetooth",
+  "attributes": {
+    "summary": {
+      "label": "Bluetooth dongle"
+    },
+    "state": {
+      "label": "Bluetooth"
+    }
+  },
+  "commands": {}
+}

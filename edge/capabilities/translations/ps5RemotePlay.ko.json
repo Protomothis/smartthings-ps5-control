@@ -1,0 +1,13 @@
+{
+  "tag": "ko",
+  "label": "PS5 Remote Play",
+  "attributes": {
+    "summary": {
+      "label": "Remote Play"
+    },
+    "state": {
+      "label": "Remote Play 등록"
+    }
+  },
+  "commands": {}
+}

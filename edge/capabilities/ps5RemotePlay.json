@@ -1,0 +1,38 @@
+{
+  "id": "numbersystem53811.ps5remoteplay",
+  "version": 1,
+  "status": "proposed",
+  "name": "ps5RemotePlay",
+  "ephemeral": false,
+  "attributes": {
+    "summary": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "maxLength": 255
+          }
+        },
+        "additionalProperties": false,
+        "required": ["value"]
+      },
+      "enumCommands": []
+    },
+    "state": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": ["registered","unregistered"]
+          }
+        },
+        "additionalProperties": false,
+        "required": ["value"]
+      },
+      "enumCommands": []
+    }
+  },
+  "commands": {}
+}

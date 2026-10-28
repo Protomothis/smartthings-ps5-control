@@ -1,0 +1,38 @@
+{
+  "id": "numbersystem53811.ps5bluetooth",
+  "version": 1,
+  "status": "proposed",
+  "name": "ps5Bluetooth",
+  "ephemeral": false,
+  "attributes": {
+    "summary": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "maxLength": 255
+          }
+        },
+        "additionalProperties": false,
+        "required": ["value"]
+      },
+      "enumCommands": []
+    },
+    "state": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": ["ready","unsupported","unconfigured","unchecked","error"]
+          }
+        },
+        "additionalProperties": false,
+        "required": ["value"]
+      },
+      "enumCommands": []
+    }
+  },
+  "commands": {}
+}

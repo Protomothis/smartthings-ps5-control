@@ -1,0 +1,10 @@
+{
+  "tag": "en",
+  "label": "PS5 version",
+  "attributes": {
+    "versions": {
+      "label": "Versions"
+    }
+  },
+  "commands": {}
+}

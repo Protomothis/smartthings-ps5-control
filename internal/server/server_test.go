@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -19,6 +19,9 @@ import (
 	"github.com/protomothis/smartthings-ps5-control/internal/spoof"
 	"github.com/protomothis/smartthings-ps5-control/internal/wake"
 )
+
+// serversByURL lets a test reach the Server behind its httptest server.
+var serversByURL = map[string]*Server{}
 
 type fixture struct {
 	srv   *httptest.Server
@@ -75,7 +78,7 @@ func newFixture(t *testing.T, configured bool) *fixture {
 		}
 	}
 	fd := &fakeDeps{status: discovery.Status{State: discovery.StateStandby, Code: 620, Fields: map[string]string{"host-type": "PS5"}}}
-	s := New(store, fd.deps(), Auth{User: "admin", Pass: "secret"}, "test", log.New(io.Discard, "", 0))
+	s := New(store, fd.deps(), Auth{User: "admin", Pass: "secret"}, "test", slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 	ts := httptest.NewServer(s.Handler())
 	t.Cleanup(ts.Close)
 	return &fixture{srv: ts, store: store, deps: fd}
@@ -195,14 +198,22 @@ func TestAuth(t *testing.T) {
 	}
 	req, _ := http.NewRequest("GET", f.srv.URL+"/", nil)
 	req.SetBasicAuth("admin", "wrong")
-	res, _ := http.DefaultClient.Do(req)
-	if res.StatusCode != 401 || !strings.Contains(res.Header.Get("WWW-Authenticate"), "Basic") {
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusUnauthorized || !strings.Contains(res.Header.Get("WWW-Authenticate"), "Basic") {
 		t.Fatalf("wrong password = %d", res.StatusCode)
 	}
 	req.SetBasicAuth("admin", "secret")
-	res, _ = http.DefaultClient.Do(req)
+	res, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
 	body, _ := io.ReadAll(res.Body)
-	if res.StatusCode != 200 || !strings.Contains(string(body), "navigator.hid") {
+	res.Body.Close()
+	if res.StatusCode != http.StatusOK || !strings.Contains(string(body), "navigator.hid") {
 		t.Fatalf("page = %d %.80q", res.StatusCode, body)
 	}
 	// public routes never challenge
@@ -213,11 +224,15 @@ func TestAuth(t *testing.T) {
 
 func TestAuthDisabled(t *testing.T) {
 	store, _ := config.Open(t.TempDir())
-	s := New(store, (&fakeDeps{}).deps(), Auth{}, "test", log.New(io.Discard, "", 0))
+	s := New(store, (&fakeDeps{}).deps(), Auth{}, "test", slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
-	res, _ := http.Get(ts.URL + "/api/config")
-	if res.StatusCode != 503 {
+	res, err := http.Get(ts.URL + "/api/config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("code = %d", res.StatusCode)
 	}
 }

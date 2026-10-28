@@ -1,0 +1,72 @@
+# golangci-lint v2 configuration (CI pins the version in .github/workflows/ci.yml).
+#
+#   golangci-lint run ./...
+#
+# The Linux-only raw-socket code is linted with GOOS=linux in CI (ci.yml), so
+# the build tags there are seen too.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # standard = errcheck, govet, ineffassign, staticcheck, unused.
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - gosec
+    - misspell
+    - noctx
+    - usestdlibvars
+
+  settings:
+    errcheck:
+      # Writing an HTTP response or a log line: if the client or console is
+      # gone there is nobody left to report the error to.
+      exclude-functions:
+        - (net/http.ResponseWriter).Write
+        - (*encoding/json.Encoder).Encode
+        - (*net/http.Server).Shutdown
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+    errorlint:
+      # Whether a cause becomes part of a package's error API is a per-call
+      # decision; the == / type-assertion checks stay.
+      errorf: false
+    gosec:
+      excludes:
+        # G115 (integer overflow on conversion): HCI byte/uint16 packing is
+        # bounded by the protocol, and the rule cannot see that.
+        - G115
+        # G304 (file path from variable): every path is under the data
+        # directory the operator chose, not from a request.
+        - G304
+        # G104 (errors unhandled) duplicates errcheck.
+        - G104
+        # G117 (secret-looking field marshalled to JSON): config.json is
+        # where the API secret and the Remote Play keys are meant to live;
+        # the API redacts them (config.Redacted).
+        - G117
+
+  exclusions:
+    generated: lax
+    warn-unused: true
+    presets:
+      - std-error-handling
+    rules:
+      # Tests: unchecked setup errors surface as a failing assertion anyway,
+      # contexts are irrelevant for an httptest server.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - noctx
+      - path: _test\.go
+        linters: [usestdlibvars]
+        text: can be replaced by http\.Method
+
+formatters:
+  enable:
+    - gofmt

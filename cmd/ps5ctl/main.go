@@ -35,6 +35,7 @@ Usage:
   ps5ctl wake    --hci hci0 --controller <bdaddr> --ps5 <bdaddr>
                  [--timeout 6s] [--attempts 3] [--retry-delay 2s] [--json]
   ps5ctl serve   [--data /data] [--http :8580] [--https :8543] [--auth-user U --auth-pass P]
+  ps5ctl rp      account | register | wake | standby   (Remote Play; see ps5ctl rp)
 
 Exit codes:
   0  on / success        1  usage or local error
@@ -60,6 +61,8 @@ func main() {
 		code = cmdWake(ctx, os.Args[2:])
 	case "serve":
 		code = cmdServe(ctx, os.Args[2:])
+	case "rp":
+		code = cmdRP(ctx, os.Args[2:])
 	case "version", "--version", "-v":
 		fmt.Println(version)
 	case "help", "-h", "--help":
@@ -88,7 +91,7 @@ func cmdStatus(ctx context.Context, args []string) int {
 	ip := fs.String("ip", "", "PS5 IP address or hostname (required)")
 	timeout := fs.Duration("timeout", discovery.DefaultTimeout, "how long to wait for a reply")
 	asJSON := fs.Bool("json", false, "print the full result as JSON")
-	fs.Parse(args)
+	_ = fs.Parse(args) // ExitOnError: never returns an error
 	if *ip == "" {
 		fs.Usage()
 		return 1
@@ -119,7 +122,7 @@ func cmdAdapter(args []string) int {
 	fs := flag.NewFlagSet("adapter", flag.ExitOnError)
 	dev := fs.String("hci", "hci0", "HCI adapter name")
 	asJSON := fs.Bool("json", false, "print the full result as JSON")
-	fs.Parse(args)
+	_ = fs.Parse(args) // ExitOnError: never returns an error
 	info, err := wake.Inspect(*dev)
 	if err != nil {
 		return fail(err)
@@ -154,7 +157,7 @@ func cmdWake(ctx context.Context, args []string) int {
 	retryDelay := fs.Duration("retry-delay", 2*time.Second, "pause between attempts")
 	asJSON := fs.Bool("json", false, "print the full result as JSON")
 	quiet := fs.Bool("quiet", false, "suppress progress on stderr")
-	fs.Parse(args)
+	_ = fs.Parse(args) // ExitOnError: never returns an error
 	if *ctrlS == "" || *ps5S == "" {
 		fs.Usage()
 		return 1

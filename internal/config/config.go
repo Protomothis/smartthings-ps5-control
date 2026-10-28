@@ -2,6 +2,9 @@
 package config
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,6 +33,62 @@ type Config struct {
 	WakeTimeoutMS   int `json:"wake_timeout_ms"`
 	WakeAttempts    int `json:"wake_attempts"`
 	WakeRetryMS     int `json:"wake_retry_ms"`
+
+	// APISecret, when set, is required in the X-PS5-Secret header of the
+	// LAN actions (POST /wake, POST /standby). Status stays open.
+	APISecret string `json:"api_secret"`
+
+	// RemotePlay is the Remote Play registration. It is written only by the
+	// registration flow, never by the settings form (Set keeps it).
+	RemotePlay *RemotePlay `json:"remote_play,omitempty"`
+
+	// InstanceID identifies this installation to the SSDP search (USN) and
+	// becomes the driver's device network id. Generated once by Open and
+	// never edited by the settings form (Set keeps it).
+	InstanceID string `json:"instance_id"`
+}
+
+// RemotePlay is the credential the console hands out when a PIN is accepted.
+// RegistKey and RPKey let anyone start a Remote Play session, so the API
+// never returns them (see Redacted).
+type RemotePlay struct {
+	AccountID    string    `json:"account_id"`
+	RegistKey    string    `json:"regist_key"`
+	RPKey        string    `json:"rp_key"`
+	Nickname     string    `json:"nickname"`
+	Mac          string    `json:"mac"`
+	RegisteredAt time.Time `json:"registered_at"`
+}
+
+// Registered reports whether the registration carries both keys.
+func (r *RemotePlay) Registered() bool {
+	return r != nil && r.RegistKey != "" && r.RPKey != ""
+}
+
+// Redacted returns a copy safe to show: keys replaced by their presence.
+func (c Config) Redacted() Config {
+	if c.RemotePlay != nil {
+		rp := *c.RemotePlay
+		if rp.RegistKey != "" {
+			rp.RegistKey = "***"
+		}
+		if rp.RPKey != "" {
+			rp.RPKey = "***"
+		}
+		c.RemotePlay = &rp
+	}
+	return c
+}
+
+// RemotePlayReady reports whether a network wake or a standby can run.
+func (c Config) RemotePlayReady() error {
+	if err := c.StatusReady(); err != nil {
+		return err
+	}
+	if !c.RemotePlay.Registered() {
+		return fmt.Errorf("%w: remote_play (register on the settings page)", ErrNotConfigured)
+	}
+	return nil
 }
 
 // Default returns the settings a fresh install starts with.
@@ -90,7 +149,9 @@ func (c Config) WakeReady() error {
 func (c Config) Validate() error {
 	if c.PS5IP != "" {
 		if ip := net.ParseIP(c.PS5IP); ip == nil {
-			if _, err := net.LookupHost(c.PS5IP); err != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			if _, err := net.DefaultResolver.LookupHost(ctx, c.PS5IP); err != nil {
 				return fmt.Errorf("ps5_ip: %q is neither an IP nor a resolvable name", c.PS5IP)
 			}
 		}
@@ -124,13 +185,14 @@ type Store struct {
 
 // Open reads dir/config.json, creating it with defaults when missing.
 func Open(dir string) (*Store, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, fmt.Errorf("config: create data dir: %w", err)
 	}
 	s := &Store{path: filepath.Join(dir, FileName), cur: Default()}
 	data, err := os.ReadFile(s.path)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
+		s.cur.InstanceID = newInstanceID()
 		if err := s.write(s.cur); err != nil {
 			return nil, err
 		}
@@ -142,8 +204,25 @@ func Open(dir string) (*Store, error) {
 	if err := json.Unmarshal(data, &c); err != nil {
 		return nil, fmt.Errorf("config: parse %s: %w", s.path, err)
 	}
+	if c.InstanceID == "" {
+		// An install from before instance ids: mint one and keep it.
+		c.InstanceID = newInstanceID()
+		if err := s.write(c); err != nil {
+			return nil, err
+		}
+	}
 	s.cur = c
 	return s, nil
+}
+
+// newInstanceID returns 16 lower-case hex characters from crypto/rand.
+func newInstanceID() string {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		// Fall back to the clock; still unique enough for one LAN.
+		return fmt.Sprintf("%016x", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b[:])
 }
 
 // Path returns the config file location.
@@ -156,13 +235,29 @@ func (s *Store) Get() Config {
 	return s.cur
 }
 
-// Set validates, persists and swaps in a new config.
+// Set validates, persists and swaps in a new config. The Remote Play
+// registration is server-owned: whatever c carries, the stored one is kept.
 func (s *Store) Set(c Config) error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	c.RemotePlay = s.cur.RemotePlay
+	c.InstanceID = s.cur.InstanceID
+	if err := s.write(c); err != nil {
+		return err
+	}
+	s.cur = c
+	return nil
+}
+
+// SetRemotePlay stores (or, with nil, clears) the Remote Play registration.
+func (s *Store) SetRemotePlay(rp *RemotePlay) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := s.cur
+	c.RemotePlay = rp
 	if err := s.write(c); err != nil {
 		return err
 	}
@@ -176,7 +271,7 @@ func (s *Store) write(c Config) error {
 		return err
 	}
 	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, append(data, '\n'), 0o644); err != nil {
+	if err := os.WriteFile(tmp, append(data, '\n'), 0o600); err != nil {
 		return fmt.Errorf("config: write %s: %w", tmp, err)
 	}
 	if err := os.Rename(tmp, s.path); err != nil {

@@ -18,6 +18,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -73,19 +74,19 @@ func Probe(ctx context.Context, host string, timeout time.Duration) (Status, err
 	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
 		deadline = d
 	}
-	stop := context.AfterFunc(ctx, func() { conn.SetReadDeadline(time.Now()) })
+	stop := context.AfterFunc(ctx, func() { _ = conn.SetReadDeadline(time.Now()) })
 	defer stop()
 
 	buf := make([]byte, 2048)
 	for {
-		if _, err := conn.WriteToUDP([]byte(probePayload), raddr); err != nil {
+		if _, err := conn.WriteToUDP([]byte(probePayload), raddr); err != nil && !unreachable(err) {
 			return Status{}, fmt.Errorf("discovery: send: %w", err)
 		}
 		next := time.Now().Add(resendInterval)
 		if next.After(deadline) {
 			next = deadline
 		}
-		conn.SetReadDeadline(next)
+		_ = conn.SetReadDeadline(next)
 		for {
 			n, from, err := conn.ReadFromUDP(buf)
 			if err != nil {
@@ -95,6 +96,9 @@ func Probe(ctx context.Context, host string, timeout time.Duration) (Status, err
 				}
 				if ctx.Err() != nil {
 					return Status{}, ctx.Err()
+				}
+				if unreachable(err) {
+					continue // the console is not there (yet): keep waiting for the deadline
 				}
 				return Status{}, fmt.Errorf("discovery: receive: %w", err)
 			}
@@ -110,6 +114,16 @@ func Probe(ctx context.Context, host string, timeout time.Duration) (Status, err
 			return Status{State: StateOff}, nil
 		}
 	}
+}
+
+// unreachable reports whether a socket error says the console is not there
+// rather than that something is wrong locally: an ICMP port/host unreachable
+// while the console boots (its listener is not up yet) or a network that
+// has no route. Those mean "off" for the caller, like a missing reply.
+func unreachable(err error) bool {
+	return errors.Is(err, syscall.ECONNREFUSED) ||
+		errors.Is(err, syscall.EHOSTUNREACH) ||
+		errors.Is(err, syscall.ENETUNREACH)
 }
 
 // Parse decodes a discovery reply.

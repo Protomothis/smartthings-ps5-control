@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="536" viewBox="0 0 680 536" font-family="Malgun Gothic, Apple SD Gothic Neo, Noto Sans KR, Segoe UI, sans-serif">
+  <rect x="0" y="0" width="680" height="536" fill="#ffffff"/>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#5F5E5A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- callers -->
+  <rect x="40" y="40" width="170" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.8"/>
+  <text x="125" y="58" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#085041">SmartThings 앱</text>
+  <text x="125" y="76" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#0F6E56">스위치 켜기 · 끄기</text>
+
+  <rect x="250" y="40" width="190" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.8"/>
+  <text x="345" y="58" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#085041">허브 · Edge 드라이버</text>
+  <text x="345" y="76" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#0F6E56">30초 폴링 · wake · standby</text>
+
+  <rect x="470" y="40" width="170" height="56" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.8"/>
+  <text x="555" y="58" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#444441">크롬 설정 페이지</text>
+  <text x="555" y="76" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#5F5E5A">WebHID 듀얼센스 읽기</text>
+
+  <line x1="210" y1="68" x2="248" y2="68" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- container -->
+  <rect x="40" y="140" width="600" height="250" rx="20" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.8"/>
+  <text x="60" y="162" dominant-baseline="central" font-size="14" font-weight="600" fill="#3C3489">홈서버 · ps5ctl 컨테이너 (Go, scratch)</text>
+
+  <rect x="60" y="180" width="280" height="56" rx="8" fill="#CECBF6" stroke="#534AB7" stroke-width="0.8"/>
+  <text x="200" y="198" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#26215C">HTTP API :8580</text>
+  <text x="200" y="216" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#3C3489">/status · /wake · /standby · 시크릿</text>
+
+  <rect x="360" y="180" width="260" height="56" rx="8" fill="#CECBF6" stroke="#534AB7" stroke-width="0.8"/>
+  <text x="490" y="198" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#26215C">설정 페이지 :8543</text>
+  <text x="490" y="216" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#3C3489">basic auth · 등록 · 로그 패널</text>
+
+  <path d="M345 96 L345 120 L200 120 L200 178" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M555 96 L555 120 L490 120 L490 178" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="60" y="290" width="170" height="56" rx="8" fill="#CECBF6" stroke="#534AB7" stroke-width="0.8"/>
+  <text x="145" y="308" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#26215C">상태 조회</text>
+  <text x="145" y="326" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#3C3489">UDP 9302 탐색</text>
+
+  <rect x="250" y="290" width="180" height="56" rx="8" fill="#CECBF6" stroke="#534AB7" stroke-width="0.8"/>
+  <text x="340" y="308" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#26215C">Remote Play</text>
+  <text x="340" y="326" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#3C3489">등록 · WAKEUP · 휴식 모드</text>
+
+  <rect x="450" y="290" width="170" height="56" rx="8" fill="#CECBF6" stroke="#534AB7" stroke-width="0.8"/>
+  <text x="535" y="308" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#26215C">블루투스</text>
+  <text x="535" y="326" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#3C3489">HCI BD_ADDR 스푸핑</text>
+
+  <path d="M200 236 L200 262 L145 262 L145 288" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M200 262 L340 262 L340 288" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M340 262 L535 262 L535 288" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- console -->
+  <rect x="190" y="440" width="300" height="56" rx="8" fill="#FAECE7" stroke="#993C1D" stroke-width="0.8"/>
+  <text x="340" y="458" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#712B13">PS5</text>
+  <text x="340" y="476" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#993C1D">켜짐 · 휴식 모드 · 완전 종료</text>
+
+  <path d="M145 346 L145 410 L260 410 L260 438" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="340" y1="346" x2="340" y2="438" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M535 346 L535 410 L420 410 L420 438" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+</svg>

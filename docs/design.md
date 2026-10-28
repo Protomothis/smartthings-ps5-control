@@ -82,6 +82,107 @@ defer: 원래 주소로 벤더 쓰기 (실패 시 로그 + Result.Restored=false
 - 검증: 유닛 테스트(httptest + 가짜 deps) 와 Windows 루프백에서 1회 수동 호출(401/200, 설정 저장, status off,
   wake 는 리눅스 아님 502). 실제 WebHID 읽기와 실기 wake 는 미검증
 
+### 5단계 Edge 드라이버 골격 (2026-10-21)
+
+smartthings-pc-control 의 `edge/` 에서 가져온 것: 테스트 러너(`tools/lua.js` fengari, `tests/run.lua`,
+`tests/syntax.lua`), 허브 모듈 mock(`tests/mocks/`), 주석 제거 패키저(`tools/build.js`), `.luacheckrc`,
+CI 흐름(node + C Lua 5.3 이중 실행, luacheck, `edge-v*` 태그 패키징). 가져오지 않은 것: 커스텀 capability,
+SSDP 검색, push 구독, 프로필 생성기, i18n — 이 드라이버는 표준 `switch`·`refresh` 만 쓰므로 필요 없다.
+
+- **검색은 SSDP (2026-10-28 에 교체)**. 처음엔 "검색 때마다 `ps5-control-N` 장치를 만들고 주소는 환경설정"이었다.
+  지금은 서버의 `internal/ssdp` 응답기(pc-control 의 `service/stapi/ssdp.go` 이식)가 UDP 1900 멀티캐스트 그룹을 모든
+  IPv4 인터페이스에서 받아 `urn:smartthings-ps5-control:device:ps5:1` 검색에 unicast 200 OK 로 답한다. 응답의
+  USN 은 `uuid:<instance_id>::<st>`, LOCATION 은 `http://<받은 인터페이스 IP>:8580/ssdp.json`, 그리고 드라이버가 두 번째
+  요청 없이 쓰도록 `PS5CTL-ID` · `PS5CTL-NAME`(Remote Play 닉네임 또는 "PS5") · `PS5CTL-PORT` 헤더를 더했다.
+  MX 는 3초로 클램프하고 그 안에서 무작위 지연, 출발 IP 당 1초에 한 번만 답한다. `instance_id` 는 `config.Open` 이 한 번
+  만들어 저장하고 `Set` 이 못 바꾼다(드라이버 DNI `ps5-control-<id>` 의 근거).
+- **드라이버 쪽**: `discovery.lua` 가 cosock UDP 로 M-SEARCH(MX 2) 를 보내고 4초 동안 응답을 모아 id 로 합친다. id 가
+  이미 있는 장치면 만들지 않는다. 응답이 없고 장치도 없을 때만 `ps5-control-manual-<time>-<n>` 장치 하나를 만들어
+  환경설정 경로를 남긴다. 주소는 생성 때 pending 테이블 → `added` 의 `adopt` 로 필드(`discovered_ip/port/name`)에
+  저장. **`serverAddress` 환경설정이 비어 있지 않으면 언제나 그 값이 우선**(`discovery.address`)이고, 비어 있으면
+  필드. 폴링이 `unreachable` 로 끝나면 pinned 가 아닌 장치는 5분에 한 번 자기 id 로 재검색해 주소가 바뀌었으면
+  옮기고 바로 폴링한다(`discovery.research`, poll.lua 가 `once` 훅을 꽂아 줌).
+- 실측 대기: 허브의 M-SEARCH 가 호스트 네트워크 컨테이너에 닿는지(`answered search from …` 로그), 이 PC 에서 본
+  "새 UDP 리스너의 첫 데이터그램 유실"이 허브-서버 사이에는 없는지(허브는 검색을 2~3번 반복하므로 괜찮을 것).
+- **스위치 = 전원.** `on` 만 켜짐, `standby`·`off` 는 꺼짐. 휴식 모드를 구분해 보여 주려면 커스텀 capability 가
+  필요하고(네임스페이스 발급·허브 캐시 함정), v1 에서는 하지 않는다.
+- **켜기 = `POST /wake` 동기 호출.** 서버가 최대 ~30초 걸리므로 드라이버 쪽 luasocket TIMEOUT 을 60초로 둔다
+  (cosock 코루틴이라 다른 장치를 막지 않는다). 스위치는 즉시 `on` 으로 그리고, 200 이면 90초 동안 5초마다
+  `/status` 로 확인, 그래도 `on` 이 아니면 되돌린다. 504/5xx 면 바로 되돌린다. 423(진행 중)이면 그냥 따라간다.
+- **끄기는 무시**하고 현재 값을 `state_change = true` 로 다시 보내 토글을 되돌린다(앱은 이벤트가 와야 회전을
+  멈춘다 — 플랫폼 노트 "상세 화면").
+- **이벤트 예산**: 같은 값은 보내지 않고 10분에 한 번만 순환 재전송(`model.should_emit`). 장치당 줄이 하나라
+  pc-control 의 묶음 분할은 필요 없다.
+- **서버 불통과 PS5 꺼짐은 다르다.** HTTP 가 안 오면 `device:offline()`, 오면 `online()`. 스위치 값은 마지막
+  값을 유지한다.
+- 실측: `GameConsole` 은 API 가 거절(NotValidValue, 2026-10-28) → `Others`. 드라이버는 Dev 채널(Protomothis Dev)에 올라감(driverId d0946d3a…). 대기: `device:online/offline` 표시, 60초 TIMEOUT 이 cosock
+  에서 실제로 먹는지, 깨우기 뒤 PS5 가 9302 에 답하기까지의 시간(90초 창의 근거).
+
+### Remote Play: 휴식 모드 전환과 네트워크 깨우기 (2026-10-21, v0.1.0 에 포함)
+
+끄기(휴식 모드)를 지원하려면 PS5 의 Remote Play 프로토콜이 필요하고, 같은 등록 키로 휴식 모드에서 네트워크 깨우기까지
+된다. 그래서 블루투스는 완전 종료 상태 전용이 되고 동글 칩셋 리스크의 비중이 내려간다.
+
+- **출처**: dhleong/playactor (ISC) 의 PS5 부분만 `internal/remoteplay` 로 이식. 키 테이블은 `keys_ps5.go` 로 생성.
+  검증은 playactor 의 테스트 벡터(chiaki 가 만든 등록 본문 포함)와 playactor 를 직접 실행해 뽑은 세션 벡터
+  (`scratchpad` 의 `vectors.ts`), 그리고 가짜 콘솔로. 실기 PS5 검증은 사용자 몫.
+- **흐름**: 등록(설정 페이지: 계정 ID + PS5 의 PIN → `POST /sie/ps5/rp/sess/rgst`)
+  → 등록 키·RP-Key 를 `config.json` 의 `remote_play` 에 저장. 깨우기는 UDP 9302 `WAKEUP`, 휴식 모드는
+  `/sess/init` → `/sess/ctrl` 세션에서 Login 후 Standby 패킷.
+- **서버 통합** (`internal/server/remoteplay.go`): 서버는 프로토콜 패키지를 직접 모르고 `RemotePlayClient` 인터페이스
+  (config 타입)로만 쓴다. `cmd/ps5ctl/remoteplay.go` 가 어댑터. 그래서 서버 테스트는 가짜로 돈다.
+- **`POST /wake` 순서**: 상태 조회 → `on` 이면 아무것도 안 함(`method: none`) → `standby` 이고 등록돼 있으면 네트워크
+  깨우기 후 최대 30초 상태 폴링 → 실패하거나 `off` 면 블루투스. `?method=` 로 고정 가능. 응답에 `method` 와
+  블루투스 세부(`bluetooth`)를 같이 준다. 블루투스 성공 뒤 상태 대기는 하지 않는다(드라이버가 폴링).
+- **`POST /standby`**: 켜져 있지 않으면 즉시 성공(세션 안 엶). 세션 뒤 최대 30초 동안 `standby`/`off` 를 기다리고
+  못 보면 504. 깨우기와 같은 mutex.
+- **API 시크릿**: `api_secret` 을 정하면 `/wake` `/standby` 에 `X-PS5-Secret` 필수(sha256 constant-time 비교).
+  `/status` 는 열어 둔다. 드라이버 환경설정 `secret`.
+- **등록 키 보호**: `GET /api/config` 는 `regist_key`/`rp_key` 를 `***` 로, `PUT /api/config` 는 `remote_play` 를
+  무시하고 저장된 것을 유지(`Store.Set`). 등록·해제는 `/api/remoteplay/*` (basic auth) 로만.
+- **계정 ID 는 직접 입력 (2026-10-27)**: 처음엔 PSN OAuth(리다이렉트 URL 의 코드 → 토큰 → `user_id`)를 뒀지만
+  뺐다. 소니 인증 서버와 Remote Play 앱의 공개 client secret 에 기대는 경로가 서버에 남고, 한 번 하는 등록에 비해
+  화면이 복잡했다. 이제 base64 계정 ID(12자) 또는 숫자 `user_id` 를 받아 `remoteplay.NormalizeAccountID` 가 base64 로
+  맞춘다. 서버는 PSN 과 전혀 통신하지 않는다.
+- **등록 잠금**: 등록돼 있으면 `POST /api/remoteplay/register` 는 409. 바꾸려면 `DELETE /api/remoteplay` 로 먼저
+  해제한다. 설정 페이지는 등록 정보를 읽기 전용으로 보이고 해제는 한 번 더 확인한다.
+- **드라이버**: 끄기 = `POST /standby`(즉시 off, 실패 시 되돌림), `offAction` 환경설정(`standby`/`ignore`),
+  `secret` 환경설정. `/wake` 의 네트워크 경로는 드라이버가 몰라도 된다.
+- 실측 대기: 등록 검색(UDP 9295 바인드)이 호스트 네트워크 컨테이너에서 되는지, 세션 `ctrl` 응답 뒤 패킷 스트림,
+  PIN 등록 뒤 PS5 가 보이는 닉네임, 휴식 모드 전환까지 걸리는 시간, 로그인 비밀번호 사용자의 `ErrPasscode`.
+
+### 드라이버 화면: 커스텀 capability (2026-10-28)
+
+표준 `switch` 만으로는 켜짐/꺼짐뿐이라 pc-control 과 같은 방식으로 커스텀 capability 를 뒀다.
+
+- 앱은 한 capability 의 `state` 줄이 둘이면 반폭으로 잘라 그리므로, **보이는 줄 하나당 capability 하나**:
+  `ps5Power`(powerState enum, 타일 라벨 + 루틴 조건), `ps5Info`(summary 줄 + connection 조건 + lastSeen),
+  `ps5Wake`(lastWake 줄 + lastOutcome 조건), `ps5Bluetooth`(summary 줄 + state 조건), `ps5RemotePlay`(summary 줄 +
+  state 조건), `ps5Version`(versions 줄). 값 문구는 프레젠테이션 `alternatives` 에 "한국어 (English)" 병기,
+  자유 문자열은 한국어(앱이 값은 번역하지 않음).
+- 서버 `/status` 에 `server` 블록을 더해 한 번의 폴링으로 모든 줄을 채운다. 동글 확인(`wake.Inspect`)은 10분
+  캐시에 백그라운드 갱신이라 폴링 응답이 느려지지 않는다.
+- emit 규칙(`poll.emit_row`): 같은 값은 안 보내고(`rows_sent`, 실행마다 비움 → 실행마다 첫 전송은 강제),
+  10분에 한 번 재전송, 명령 응답은 강제. 줄은 switch 포함 12개라 30초 폴링이 고른 상태에선 아무것도 안 낸다.
+- 프로필 `ps5.v2`(카테고리 `Switch` — 앱의 아이콘 바꾸기가 되는 카테고리). `profiles.ensure` 가 `init` 에서
+  v1 장치를 `try_update_metadata` 로 옮기고 `poll.repaint` 로 전 줄을 다시 보낸다. 화면을 또 바꾸면 v3 파일.
+- capability 생성은 `edge/tools/capabilities.sh create`(2026-10-28 계정에 생성 완료). 정의·프레젠테이션을 바꾸려면
+  새 id 가 필요하다(허브 캐시·첫 프레젠테이션 고정).
+- 실측 대기: 타일의 powerState 라벨, 각 줄의 문구 길이, 이전(v1→v2) 뒤 전 줄이 채워지는지.
+
+### 로깅 (2026-10-21)
+
+- `internal/logx`: `log/slog` 핸들러 하나가 stderr(컨테이너 로그) · 회전 파일 · 메모리 링(500줄)에 같은 줄을 쓴다.
+  줄 형식 `2026-10-21 15:04:05.123 INFO  wake: message key=value`. `component` 속성이 접두어.
+- 회전: `/data/logs/ps5ctl.log` 1 MiB 를 넘기 전에 `.1`·`.2` 로 밀고 셋만 남긴다(최대 3 MiB). 한 줄이 상한보다
+  커도 통째로 쓴다. 재시작 시 기존 파일 크기를 이어 센다.
+- 레벨: 기본 INFO. HTTP 접근 로그는 DEBUG(5xx 는 ERROR, 401 뺀 4xx 는 WARN)라 드라이버의 30초 폴링이 파일을
+  채우지 않는다. `PS5_LOG_LEVEL=debug` 로 켠다. `/api/logs*` 요청 자체는 접근 로그에서 뺀다(패널 폴링).
+- 페이지: `GET /api/logs?after=<seq>&limit=` 로 링에서 증분 수신(3초), 레벨 필터는 클라이언트에서, 다운로드는
+  `GET /api/logs/download`(회전분 오래된 순 + 현재). 둘 다 basic auth.
+- 구성요소: server, http, config, wake, standby, remoteplay. wake 패키지의 `Log func` 콜백은 그대로 두고 서버가
+  component=wake 로 감싼다(패키지는 slog 를 모른다).
+
 ## 초기 요구사항 (2026-10-21 원문)
 
 ### 목표

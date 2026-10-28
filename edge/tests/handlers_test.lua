@@ -1,0 +1,152 @@
+local h = require "helpers"
+local Driver = require "st.driver"
+local handlers = require "handlers"
+local model = require "model"
+local poll = require "poll"
+
+local T = {}
+
+local function status(state)
+  return { code = 200, body = string.format('{"state":"%s"}', state) }
+end
+
+local WOKE = { code = 200, body = '{"outcome":"success","status_text":"Remote User Terminated Connection","attempts":1,"restored":true}' }
+local NO_ANSWER = { code = 504, body = '{"outcome":"timeout","status_text":"Page Timeout","attempts":3,"restored":true}' }
+
+function T.test_switch_on_wakes_and_follows()
+  local driver, device, clock = Driver("t"), h.device(), h.clock()
+  device.fields[poll.F_POWER] = "standby"
+  local http = h.http({ WOKE, status("on") })
+  handlers.switch_on(driver, device, {}, h.deps(http, clock))
+  h.assert_equal(http.requests[1].method, "POST")
+  h.assert_equal(http.requests[1].url, "http://192.168.1.50:8580/wake")
+  local values = h.switch_values(device)
+  h.assert_equal(values[1], "on", "optimistic on")
+  h.assert_true(h.last_switch_forced(device))
+  h.assert_true(type(device.fields[poll.F_WAKING_UNTIL]) == "number")
+  h.assert_equal(driver.timers[1].name, "ps5-wake-follow")
+  clock.advance(5)
+  driver:fire("ps5-wake-follow")
+  h.assert_nil(device.fields[poll.F_WAKING_UNTIL], "confirmed on closes the window")
+end
+
+function T.test_switch_on_refused_springs_back()
+  local driver, device, clock = Driver("t"), h.device(), h.clock()
+  device.fields[poll.F_POWER] = "off"
+  local http = h.http({ NO_ANSWER })
+  handlers.switch_on(driver, device, {}, h.deps(http, clock))
+  local values = h.switch_values(device)
+  h.assert_equal(values[1], "on")
+  h.assert_equal(values[2], "off", "springs back")
+  h.assert_true(h.last_switch_forced(device))
+  h.assert_nil(device.fields[poll.F_WAKING_UNTIL])
+  h.assert_equal(#driver.timers, 0, "no follow-up polls")
+end
+
+function T.test_switch_on_busy_still_follows()
+  local driver, device, clock = Driver("t"), h.device(), h.clock()
+  local http = h.http({ { code = 423, body = '{"error":"a wake is already in progress"}' } })
+  handlers.switch_on(driver, device, {}, h.deps(http, clock))
+  h.assert_equal(driver.timers[1].name, "ps5-wake-follow")
+  h.assert_equal(h.switch_values(device)[1], "on")
+end
+
+function T.test_switch_on_when_already_on_only_answers()
+  local driver, device, clock = Driver("t"), h.device(), h.clock()
+  device.fields[poll.F_POWER] = "on"
+  local http = h.http({ WOKE })
+  handlers.switch_on(driver, device, {}, h.deps(http, clock))
+  h.assert_equal(#http.requests, 0, "no wake request")
+  h.assert_equal(h.switch_values(device)[1], "on")
+  h.assert_true(h.last_switch_forced(device))
+end
+
+local STANDBY_OK = { code = 200, body = '{"outcome":"success","state":"standby"}' }
+
+function T.test_switch_off_sends_standby()
+  local device, clock = h.device(), h.clock()
+  device.fields[poll.F_POWER] = "on"
+  local http = h.http({ STANDBY_OK, status("standby") })
+  handlers.switch_off(nil, device, {}, h.deps(http, clock))
+  h.assert_equal(http.requests[1].method, "POST")
+  h.assert_equal(http.requests[1].url, "http://192.168.1.50:8580/standby")
+  local values = h.switch_values(device)
+  h.assert_equal(values[1], "off", "optimistic off")
+  h.assert_true(h.last_switch_forced(device))
+  h.assert_equal(device.fields[poll.F_POWER], "standby", "the follow-up poll stored the new state")
+  h.assert_equal(#values, 1, "the poll's identical off is not re-sent")
+end
+
+function T.test_switch_off_failure_springs_back()
+  local device, clock = h.device(), h.clock()
+  device.fields[poll.F_POWER] = "on"
+  local http = h.http({ { code = 409, body = '{"error":"not configured: remote_play"}' } })
+  handlers.switch_off(nil, device, {}, h.deps(http, clock))
+  local values = h.switch_values(device)
+  h.assert_equal(values[1], "off")
+  h.assert_equal(values[2], "on", "springs back")
+  h.assert_true(h.last_switch_forced(device))
+end
+
+function T.test_switch_off_when_not_on_only_answers()
+  local device, clock = h.device(), h.clock()
+  device.fields[poll.F_POWER] = "standby"
+  local http = h.http({ STANDBY_OK })
+  handlers.switch_off(nil, device, {}, h.deps(http, clock))
+  h.assert_equal(#http.requests, 0, "nothing to do")
+  h.assert_equal(h.switch_values(device)[1], "off")
+  h.assert_true(h.last_switch_forced(device))
+end
+
+function T.test_switch_off_ignore_preference()
+  local device, clock = h.device({ serverAddress = "192.168.1.50", offAction = "ignore" }), h.clock()
+  device.fields[poll.F_POWER] = "on"
+  local http = h.http({ STANDBY_OK })
+  handlers.switch_off(nil, device, {}, h.deps(http, clock))
+  h.assert_equal(#http.requests, 0)
+  h.assert_equal(h.switch_values(device)[1], "on", "the real value, forced")
+  h.assert_true(h.last_switch_forced(device))
+end
+
+function T.test_refresh_polls()
+  local device, clock = h.device(), h.clock()
+  local http = h.http({ status("on") })
+  handlers.refresh(nil, device, {}, h.deps(http, clock))
+  h.assert_equal(http.requests[1].url, "http://192.168.1.50:8580/status")
+  h.assert_equal(h.switch_values(device)[1], "on")
+end
+
+function T.test_lifecycle()
+  local driver, device, clock = Driver("t"), h.device(), h.clock()
+  local http = h.http({ status("standby") })
+  local deps = h.deps(http, clock)
+  handlers.added(driver, device, {}, deps)
+  h.assert_equal(h.switch_values(device)[1], "off", "painted off on add")
+  handlers.init(driver, device, {}, deps)
+  h.assert_equal(driver.timers[1].name, "ps5-poll")
+  h.assert_equal(driver.timers[1].interval, 30)
+  h.assert_equal(#http.requests, 1, "init polls once")
+  device.preferences.pollInterval = "300"
+  handlers.info_changed(driver, device, {}, deps)
+  h.assert_true(driver.timers[1].cancelled)
+  h.assert_equal(driver.timers[2].interval, 300)
+  handlers.removed(driver, device)
+  h.assert_true(driver.timers[2].cancelled)
+end
+
+function T.test_added_adopts_discovered_address()
+  local discovery = require "discovery"
+  local driver, device, clock = Driver("t"), h.device({ serverAddress = "" }), h.clock()
+  device.device_network_id = "ps5-control-srv9"
+  discovery.remember("ps5-control-srv9", { ip = "192.168.1.50", port = 8580, name = "PS5-9" })
+  handlers.added(driver, device, {}, h.deps(nil, clock))
+  h.assert_equal(device.fields[discovery.F_IP], "192.168.1.50")
+  h.assert_equal(device.fields[discovery.F_NAME], "PS5-9")
+  h.assert_equal(h.switch_values(device)[1], "off")
+end
+
+function T.test_wake_window_length()
+  h.assert_true(model.WAKE_WINDOW_SECONDS >= 60, "long enough for a console booting from off")
+end
+
+return T

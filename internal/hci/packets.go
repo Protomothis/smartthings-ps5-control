@@ -64,6 +64,19 @@ func Disconnect(handle uint16, reason byte) []byte {
 	return Command(OpDisconnect, []byte{byte(handle), byte(handle >> 8), reason})
 }
 
+// EventFilter is the HCI_FILTER socket option value that delivers every event
+// packet: struct hci_ufilter { u32 type_mask; u32 event_mask[2]; u16 opcode; }.
+// event_mask covers codes 0..63 only, so vendor events (0xFF) never arrive.
+// The struct is 16 bytes with tail padding; kernels since 6.10 reject a
+// shorter option with EINVAL (bt_copy_from_sockptr), so all 16 are sent.
+func EventFilter() []byte {
+	f := make([]byte, 16)
+	binary.LittleEndian.PutUint32(f[0:], 1<<PktEvent)
+	binary.LittleEndian.PutUint32(f[4:], 0xFFFFFFFF)
+	binary.LittleEndian.PutUint32(f[8:], 0xFFFFFFFF)
+	return f
+}
+
 // Event is a parsed HCI event packet.
 type Event struct {
 	Code   byte
