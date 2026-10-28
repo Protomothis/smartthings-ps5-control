@@ -2,7 +2,10 @@ package discovery
 
 import (
 	"context"
+	"errors"
 	"net"
+	"os"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -69,5 +72,25 @@ func TestProbeAgainstFakeConsole(t *testing.T) {
 	}
 	if st.State != StateStandby || st.Fields["host-type"] != "PS5" {
 		t.Fatalf("got %+v", st)
+	}
+}
+
+func TestUnreachableErrors(t *testing.T) {
+	// A console that is booting answers the probe with ICMP port unreachable;
+	// a host that is away yields host/net unreachable. Those are "off", not
+	// failures. Anything else stays an error.
+	wrap := func(errno syscall.Errno) error {
+		return &net.OpError{Op: "read", Net: "udp", Err: &os.SyscallError{Syscall: "recvfrom", Err: errno}}
+	}
+	for _, e := range []syscall.Errno{syscall.ECONNREFUSED, syscall.EHOSTUNREACH, syscall.ENETUNREACH} {
+		if !unreachable(wrap(e)) {
+			t.Errorf("%v should count as unreachable", e)
+		}
+	}
+	if unreachable(wrap(syscall.EACCES)) {
+		t.Error("EACCES is a local failure")
+	}
+	if unreachable(errors.New("plain")) {
+		t.Error("a plain error is not unreachable")
 	}
 }

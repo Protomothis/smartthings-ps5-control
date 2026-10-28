@@ -172,6 +172,8 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	st, err := s.deps.Probe(ctx, c.PS5IP, c.StatusTimeout())
 	if err != nil {
+		// The access log only carries the status code; the reason matters here.
+		s.logc("status").Warn("probe failed", "host", c.PS5IP, "err", err)
 		writeError(w, http.StatusBadGateway, err)
 		return
 	}
