@@ -3,6 +3,7 @@
 -- and clock.
 
 local client = require "client"
+local discovery = require "discovery"
 local log = require "log"
 local model = require "model"
 local poll = require "poll"
@@ -92,9 +93,13 @@ end
 
 function handlers.added(_driver, device, _event, deps)
   log.info("added " .. device.id)
+  -- A device the search created arrives with the server's address.
+  if discovery.adopt(device) then
+    log.info(string.format("%s: using discovered address %s", device.id, tostring(device:get_field(discovery.F_IP))))
+  end
   -- Paint the tile now; the first poll fills in the real value.
   poll.emit_switch(device, "off", true, deps)
-  if not client.base_url(device.preferences) then
+  if not client.device_base_url(device) then
     log.warn(device.id .. ": set the server address in the device settings")
   end
 end

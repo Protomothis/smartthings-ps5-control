@@ -3,6 +3,8 @@ package config
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -39,6 +41,11 @@ type Config struct {
 	// RemotePlay is the Remote Play registration. It is written only by the
 	// registration flow, never by the settings form (Set keeps it).
 	RemotePlay *RemotePlay `json:"remote_play,omitempty"`
+
+	// InstanceID identifies this installation to the SSDP search (USN) and
+	// becomes the driver's device network id. Generated once by Open and
+	// never edited by the settings form (Set keeps it).
+	InstanceID string `json:"instance_id"`
 }
 
 // RemotePlay is the credential the console hands out when a PIN is accepted.
@@ -185,6 +192,7 @@ func Open(dir string) (*Store, error) {
 	data, err := os.ReadFile(s.path)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
+		s.cur.InstanceID = newInstanceID()
 		if err := s.write(s.cur); err != nil {
 			return nil, err
 		}
@@ -196,8 +204,25 @@ func Open(dir string) (*Store, error) {
 	if err := json.Unmarshal(data, &c); err != nil {
 		return nil, fmt.Errorf("config: parse %s: %w", s.path, err)
 	}
+	if c.InstanceID == "" {
+		// An install from before instance ids: mint one and keep it.
+		c.InstanceID = newInstanceID()
+		if err := s.write(c); err != nil {
+			return nil, err
+		}
+	}
 	s.cur = c
 	return s, nil
+}
+
+// newInstanceID returns 16 lower-case hex characters from crypto/rand.
+func newInstanceID() string {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		// Fall back to the clock; still unique enough for one LAN.
+		return fmt.Sprintf("%016x", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b[:])
 }
 
 // Path returns the config file location.
@@ -219,6 +244,7 @@ func (s *Store) Set(c Config) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c.RemotePlay = s.cur.RemotePlay
+	c.InstanceID = s.cur.InstanceID
 	if err := s.write(c); err != nil {
 		return err
 	}

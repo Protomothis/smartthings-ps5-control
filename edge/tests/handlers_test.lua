@@ -134,6 +134,17 @@ function T.test_lifecycle()
   h.assert_true(driver.timers[2].cancelled)
 end
 
+function T.test_added_adopts_discovered_address()
+  local discovery = require "discovery"
+  local driver, device, clock = Driver("t"), h.device({ serverAddress = "" }), h.clock()
+  device.device_network_id = "ps5-control-srv9"
+  discovery.remember("ps5-control-srv9", { ip = "192.168.1.50", port = 8580, name = "PS5-9" })
+  handlers.added(driver, device, {}, h.deps(nil, clock))
+  h.assert_equal(device.fields[discovery.F_IP], "192.168.1.50")
+  h.assert_equal(device.fields[discovery.F_NAME], "PS5-9")
+  h.assert_equal(h.switch_values(device)[1], "off")
+end
+
 function T.test_wake_window_length()
   h.assert_true(model.WAKE_WINDOW_SECONDS >= 60, "long enough for a console booting from off")
 end

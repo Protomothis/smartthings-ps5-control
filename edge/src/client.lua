@@ -28,15 +28,26 @@ client.STATUS_TIMEOUT = 8
 client.WAKE_TIMEOUT = 60
 client.USER_AGENT = "smartthings-ps5-control-edge/" .. VERSION
 
---- `http://<serverAddress>:<serverPort>`, or nil while the address is empty.
-function client.base_url(prefs)
-  prefs = prefs or {}
-  local ip = prefs.serverAddress
+--- `http://<ip>:<port>` from an explicit address.
+function client.url_for(ip, port)
   if type(ip) ~= "string" or ip == "" then
     return nil
   end
-  local port = tonumber(prefs.serverPort) or client.DEFAULT_PORT
-  return string.format("http://%s:%d", ip, math.floor(port))
+  return string.format("http://%s:%d", ip, math.floor(tonumber(port) or client.DEFAULT_PORT))
+end
+
+--- `http://<serverAddress>:<serverPort>` from preferences alone, or nil
+--- while the address is empty.
+function client.base_url(prefs)
+  prefs = prefs or {}
+  return client.url_for(prefs.serverAddress, prefs.serverPort)
+end
+
+--- The URL a device talks to: the `serverAddress` preference first, else the
+--- address discovery stored on the device (discovery.address).
+function client.device_base_url(device)
+  local ip, port = require("discovery").address(device)
+  return client.url_for(ip, port)
 end
 
 --- Request headers. The `secret` preference travels in `X-PS5-Secret`
@@ -106,7 +117,7 @@ end
 function client.request(device, opts, deps)
   deps = deps or {}
   opts = opts or {}
-  local base = client.base_url((device or {}).preferences)
+  local base = client.device_base_url(device)
   if not base then
     return false, nil, "unconfigured"
   end

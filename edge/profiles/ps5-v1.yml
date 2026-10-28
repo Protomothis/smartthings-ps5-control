@@ -15,8 +15,8 @@ components:
 preferences:
   - name: serverAddress
     title: 서버 주소 (Server address)
-    description: "ps5-control 컨테이너가 도는 홈서버의 IPv4 주소(예: 192.168.1.50). / IPv4 address of the home server running ps5-control."
-    required: true
+    description: "ps5-control 컨테이너가 도는 홈서버의 IPv4 주소(예: 192.168.1.50). 비워 두면 검색(SSDP)으로 찾은 주소를 쓰고 바뀌면 따라갑니다. 채우면 언제나 이 값이 우선합니다. / IPv4 address of the server; empty means follow SSDP discovery."
+    required: false
     preferenceType: string
     definition:
       stringType: text

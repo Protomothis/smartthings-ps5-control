@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/protomothis/smartthings-ps5-control/internal/btaddr"
@@ -15,8 +16,26 @@ func TestOpenCreatesDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Get() != Default() {
-		t.Fatalf("got %+v", s.Get())
+	got := s.Get()
+	if len(got.InstanceID) != 16 {
+		t.Fatalf("instance id = %q", got.InstanceID)
+	}
+	got.InstanceID = ""
+	if got != Default() {
+		t.Fatalf("got %+v", got)
+	}
+	// the id is persisted: reopening keeps it, and Set cannot change it
+	s2, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s2.Get().InstanceID != s.Get().InstanceID {
+		t.Fatal("instance id changed on reopen")
+	}
+	c := s2.Get()
+	c.InstanceID = "tampered"
+	if err := s2.Set(c); err != nil || s2.Get().InstanceID != s.Get().InstanceID {
+		t.Fatal("Set must keep the instance id")
 	}
 	if _, err := os.Stat(filepath.Join(dir, FileName)); err != nil {
 		t.Fatal("config file not created:", err)
@@ -46,8 +65,8 @@ func TestSetAndReload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s2.Get() != c {
-		t.Fatalf("reloaded %+v, want %+v", s2.Get(), c)
+	if got := s2.Get(); got.InstanceID == "" || got.PS5IP != c.PS5IP || got.ControllerAddr != c.ControllerAddr || got.PS5Addr != c.PS5Addr {
+		t.Fatalf("reloaded %+v, want %+v", got, c)
 	}
 	if _, err := os.Stat(filepath.Join(dir, FileName+".tmp")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("temp file left behind")
@@ -85,7 +104,12 @@ func TestPartialFileKeepsDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := s.Get()
-	if c.PS5IP != "10.0.0.5" || c.HCI != "hci0" || c.WakeAttempts != 3 {
+	if c.PS5IP != "10.0.0.5" || c.HCI != "hci0" || c.WakeAttempts != 3 || c.InstanceID == "" {
 		t.Fatalf("got %+v", c)
+	}
+	// an older file without an id got one minted and written back
+	data, _ := os.ReadFile(filepath.Join(dir, FileName))
+	if !strings.Contains(string(data), `"instance_id": "`+c.InstanceID+`"`) {
+		t.Fatalf("instance id not persisted: %s", data)
 	}
 }

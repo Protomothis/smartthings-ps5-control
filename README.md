@@ -57,7 +57,7 @@ BD_ADDR 변경은 표준 HCI 명령이 없어 칩셋별 벤더 명령을 씁니�
 4. PS5 IP 와 **API 시크릿**을 넣고 **저장**합니다. 듀얼센스를 PC 에 USB 로 꽂고 **USB 듀얼센스 읽기**로 블루투스 주소를 채운 뒤 다시 **저장**, **깨우기**로 시험합니다.
 5. **Remote Play 등록**: PSN 계정 ID(base64 12자 또는 숫자 ID)와 PS5 의 설정 → 시스템 → 리모트 플레이 → 기기 연결에 뜨는 PIN 을 넣고 [등록]. 이후 **휴식 모드** 버튼이 동작합니다. 등록은 잠기므로 바꾸려면 먼저 [등록 해제] 합니다.
 6. 채널 초대 링크로 허브에 **SmartThings PS5 Control** 드라이버를 설치합니다(채널은 첫 릴리스와 함께 엽니다).
-7. SmartThings 앱 **[+] → 기기 추가 → 주변 기기 검색** → `PS5` 장치의 설정에 **서버 주소**와 **API 시크릿**을 넣습니다.
+7. SmartThings 앱 **[+] → 기기 추가 → 주변 기기 검색** → 컨테이너가 SSDP 로 답해 주소가 채워진 `PS5` 장치가 생깁니다. 장치 설정에 **API 시크릿**을 넣습니다(검색이 안 되는 서브넷이면 **서버 주소**를 직접).
 
 컨테이너 없이 쓰려면 `go build -o ps5ctl ./cmd/ps5ctl` 뒤 `ps5ctl status --ip <PS5>` · `sudo ps5ctl adapter` · `sudo ps5ctl wake --controller … --ps5 …` · `ps5ctl rp account|register|wake|standby` · `ps5ctl serve` 입니다.
 
@@ -69,9 +69,13 @@ BD_ADDR 변경은 표준 HCI 명령이 없어 칩셋별 벤더 명령을 씁니�
 | `http://<서버>:8580/wake` (POST) | 깨우기. 켜져 있으면 그대로, 휴식 모드면 네트워크(등록 시), 아니면 블루투스. `?method=network\|bluetooth` 로 고정. 200 성공 · 504 무응답 · 501 동글 미지원 · 423 진행 중 · 409 설정 없음. 응답의 `method` 가 쓴 경로 | `X-PS5-Secret` (시크릿을 정했을 때) |
 | `http://<서버>:8580/standby` (POST) | 휴식 모드(Remote Play 세션). 200 성공 · 504 미확인 · 409 미등록 · 502 세션 실패 | `X-PS5-Secret` (시크릿을 정했을 때) |
 | `https://<서버>:8543/` | 설정 페이지 (`/api/config`, `/api/info`, `/api/remoteplay*` 포함) | basic auth |
-| `/api/adapter`, `/healthz` | 동글 정보, 헬스체크 | 없음 |
+| `/api/adapter`, `/healthz`, `/ssdp.json` | 동글 정보, 헬스체크, SSDP 응답이 가리키는 설명(설치 ID · 이름 · 포트) | 없음 |
 
-환경변수: `PS5_AUTH_USER` · `PS5_AUTH_PASS`(없으면 설정 페이지가 503 으로 닫힘), `PS5_HTTP_ADDR`(`:8580`), `PS5_HTTPS_ADDR`(`:8543`), `PS5_TLS_HOSTS`, `PS5_DATA`(`/data`), `PS5_LOG_LEVEL`(`info`; `debug` 면 HTTP 요청까지).
+환경변수: `PS5_AUTH_USER` · `PS5_AUTH_PASS`(없으면 설정 페이지가 503 으로 닫힘), `PS5_HTTP_ADDR`(`:8580`), `PS5_HTTPS_ADDR`(`:8543`), `PS5_TLS_HOSTS`, `PS5_DATA`(`/data`), `PS5_LOG_LEVEL`(`info`; `debug` 면 HTTP 요청까지), `PS5_SSDP`(`on`; `off` 면 허브의 검색에 답하지 않음).
+
+### 문제 해결 (검색)
+
+- **주변 기기 검색에 아무것도 안 나옴** — 허브와 서버가 같은 서브넷인지, 컨테이너 로그에 `ssdp: responder listening on …` 이 있는지, 검색 때 `answered search from <허브 IP>` 가 찍히는지 봅니다. 아무 줄도 없으면 멀티캐스트가 서버까지 오지 않는 것이고(VLAN · Wi-Fi 클라이언트 격리), 그때는 장치 설정의 **서버 주소**에 직접 넣습니다.
 
 ### 문제 해결
 

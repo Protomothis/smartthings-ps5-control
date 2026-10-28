@@ -28,6 +28,7 @@ import (
 	"github.com/protomothis/smartthings-ps5-control/internal/hci"
 	"github.com/protomothis/smartthings-ps5-control/internal/logx"
 	"github.com/protomothis/smartthings-ps5-control/internal/spoof"
+	"github.com/protomothis/smartthings-ps5-control/internal/ssdp"
 	"github.com/protomothis/smartthings-ps5-control/internal/wake"
 )
 
@@ -46,6 +47,8 @@ type Deps struct {
 	// AccountID turns what the settings page sends (base64 account ID or
 	// numeric PSN user ID) into the base64 form the registration needs.
 	AccountID func(s string) (string, error)
+	// HTTPPort is the plain HTTP port the SSDP description advertises.
+	HTTPPort int
 }
 
 // RealDeps talks to the network and the adapter. The Remote Play fields are
@@ -112,6 +115,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/config", s.auth.Wrap(http.HandlerFunc(s.handleGetConfig)))
 	mux.Handle("PUT /api/config", s.auth.Wrap(http.HandlerFunc(s.handlePutConfig)))
 	mux.Handle("GET /api/info", s.auth.Wrap(http.HandlerFunc(s.handleInfo)))
+	mux.HandleFunc("GET "+ssdp.DescriptionPath, s.handleSSDPDescription)
 	mux.Handle("GET /api/logs", s.auth.Wrap(http.HandlerFunc(s.handleLogs)))
 	mux.Handle("GET /api/logs/download", s.auth.Wrap(http.HandlerFunc(s.handleLogsDownload)))
 	return s.logging(mux)
@@ -233,5 +237,31 @@ func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 		"version":     s.version,
 		"config_path": s.cfg.Path(),
 		"tls":         r.TLS != nil,
+		"instance_id": s.cfg.Get().InstanceID,
+	})
+}
+
+// SSDPInfo is what the discovery responder advertises: the instance id, a
+// label for the new device (the console's Remote Play nickname once
+// registered) and the HTTP port.
+func (s *Server) SSDPInfo() ssdp.Info {
+	c := s.cfg.Get()
+	name := "PS5"
+	if c.RemotePlay.Registered() && c.RemotePlay.Nickname != "" {
+		name = c.RemotePlay.Nickname
+	}
+	return ssdp.Info{ID: c.InstanceID, Name: name, Version: s.version, Port: s.deps.HTTPPort}
+}
+
+// handleSSDPDescription is the LOCATION of the SSDP answer: unauthenticated
+// on purpose, it carries only what the driver needs to create the device.
+func (s *Server) handleSSDPDescription(w http.ResponseWriter, r *http.Request) {
+	info := s.SSDPInfo()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id":      info.ID,
+		"name":    info.Name,
+		"version": info.Version,
+		"port":    info.Port,
+		"st":      ssdp.ST,
 	})
 }

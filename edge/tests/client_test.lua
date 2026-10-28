@@ -11,6 +11,23 @@ function T.test_base_url()
   h.assert_nil(client.base_url(nil))
 end
 
+function T.test_device_base_url_precedence()
+  local discovery = require "discovery"
+  local device = h.device({ serverAddress = "" })
+  h.assert_nil(client.device_base_url(device))
+  device.fields[discovery.F_IP] = "192.168.1.50"
+  device.fields[discovery.F_PORT] = 8580
+  h.assert_equal(client.device_base_url(device), "http://192.168.1.50:8580")
+  device.preferences.serverAddress = "10.0.0.2"
+  device.preferences.serverPort = 9000
+  h.assert_equal(client.device_base_url(device), "http://10.0.0.2:9000")
+  -- requests go to the discovered address when the preference is empty
+  device.preferences.serverAddress = ""
+  local http = h.http({ { code = 200, body = '{"state":"on"}' } })
+  client.get_status(device, h.deps(http))
+  h.assert_equal(http.requests[1].url, "http://192.168.1.50:8580/status")
+end
+
 function T.test_classify()
   h.assert_nil(client.classify(200))
   h.assert_nil(client.classify(204))

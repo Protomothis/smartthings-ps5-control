@@ -4,9 +4,14 @@
 
 local capabilities = require "st.capabilities"
 local client = require "client"
+local discovery = require "discovery"
 local model = require "model"
 
 local poll = {}
+
+-- discovery.research polls after moving a device; it gets poll.once through
+-- this hook so discovery never requires poll.
+discovery.use({ once = function(driver, device, deps) return poll.once(driver, device, deps) end })
 
 poll.DEFAULT_INTERVAL = 30
 
@@ -86,6 +91,11 @@ function poll.once(_driver, device, deps)
       end
     end
     set_online(device, false)
+    -- The server may have moved (DHCP): look for it again, within the
+    -- cooldown, unless the address is pinned by preference.
+    if kind == "unreachable" then
+      pcall(discovery.research, _driver, device, deps)
+    end
     return nil, kind
   end
   if field(device, poll.F_LAST_ERROR) ~= nil then

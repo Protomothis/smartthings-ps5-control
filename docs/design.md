@@ -89,8 +89,21 @@ smartthings-pc-control 의 `edge/` 에서 가져온 것: 테스트 러너(`tools
 CI 흐름(node + C Lua 5.3 이중 실행, luacheck, `edge-v*` 태그 패키징). 가져오지 않은 것: 커스텀 capability,
 SSDP 검색, push 구독, 프로필 생성기, i18n — 이 드라이버는 표준 `switch`·`refresh` 만 쓰므로 필요 없다.
 
-- **검색은 장치를 그냥 만든다.** 서버가 SSDP 응답을 하지 않으므로 "주변 기기 검색" 때마다 `ps5-control-N` 장치
-  하나를 만들고 서버 주소는 환경설정으로 받는다. 서버가 여러 PS5 를 다루게 되면 그때 SSDP 를 붙인다.
+- **검색은 SSDP (2026-10-28 에 교체)**. 처음엔 "검색 때마다 `ps5-control-N` 장치를 만들고 주소는 환경설정"이었다.
+  지금은 서버의 `internal/ssdp` 응답기(pc-control 의 `service/stapi/ssdp.go` 이식)가 UDP 1900 멀티캐스트 그룹을 모든
+  IPv4 인터페이스에서 받아 `urn:smartthings-ps5-control:device:ps5:1` 검색에 unicast 200 OK 로 답한다. 응답의
+  USN 은 `uuid:<instance_id>::<st>`, LOCATION 은 `http://<받은 인터페이스 IP>:8580/ssdp.json`, 그리고 드라이버가 두 번째
+  요청 없이 쓰도록 `PS5CTL-ID` · `PS5CTL-NAME`(Remote Play 닉네임 또는 "PS5") · `PS5CTL-PORT` 헤더를 더했다.
+  MX 는 3초로 클램프하고 그 안에서 무작위 지연, 출발 IP 당 1초에 한 번만 답한다. `instance_id` 는 `config.Open` 이 한 번
+  만들어 저장하고 `Set` 이 못 바꾼다(드라이버 DNI `ps5-control-<id>` 의 근거).
+- **드라이버 쪽**: `discovery.lua` 가 cosock UDP 로 M-SEARCH(MX 2) 를 보내고 4초 동안 응답을 모아 id 로 합친다. id 가
+  이미 있는 장치면 만들지 않는다. 응답이 없고 장치도 없을 때만 `ps5-control-manual-<time>-<n>` 장치 하나를 만들어
+  환경설정 경로를 남긴다. 주소는 생성 때 pending 테이블 → `added` 의 `adopt` 로 필드(`discovered_ip/port/name`)에
+  저장. **`serverAddress` 환경설정이 비어 있지 않으면 언제나 그 값이 우선**(`discovery.address`)이고, 비어 있으면
+  필드. 폴링이 `unreachable` 로 끝나면 pinned 가 아닌 장치는 5분에 한 번 자기 id 로 재검색해 주소가 바뀌었으면
+  옮기고 바로 폴링한다(`discovery.research`, poll.lua 가 `once` 훅을 꽂아 줌).
+- 실측 대기: 허브의 M-SEARCH 가 호스트 네트워크 컨테이너에 닿는지(`answered search from …` 로그), 이 PC 에서 본
+  "새 UDP 리스너의 첫 데이터그램 유실"이 허브-서버 사이에는 없는지(허브는 검색을 2~3번 반복하므로 괜찮을 것).
 - **스위치 = 전원.** `on` 만 켜짐, `standby`·`off` 는 꺼짐. 휴식 모드를 구분해 보여 주려면 커스텀 capability 가
   필요하고(네임스페이스 발급·허브 캐시 함정), v1 에서는 하지 않는다.
 - **켜기 = `POST /wake` 동기 호출.** 서버가 최대 ~30초 걸리므로 드라이버 쪽 luasocket TIMEOUT 을 60초로 둔다

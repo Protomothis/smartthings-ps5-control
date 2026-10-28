@@ -1,20 +1,26 @@
 -- Minimal cosock stub.
 --
--- UDP sockets record what they were asked to send so wol tests can inspect the
--- datagrams. `asyncify` raises on purpose: HTTP in tests must go through an
--- injected `deps.http`, never through a real socket.
+-- UDP sockets record what they were asked to send, and hand back whatever a
+-- test queued in `inbox` from `receivefrom`. `asyncify` raises on purpose:
+-- HTTP in tests must go through an injected `deps.http`, never a real socket.
 
-local cosock = { socket = {}, sent = {} }
+local cosock = { socket = {}, sent = {}, inbox = {} }
 
 function cosock.reset()
   cosock.sent = {}
+  cosock.inbox = {}
 end
 
 function cosock.socket.udp()
-  local sock = { options = {}, timeout = nil, sent = {}, closed = false }
+  local sock = { options = {}, timeout = nil, sent = {}, closed = false, inbox = cosock.inbox }
 
   function sock:setoption(name, value)
     self.options[name] = value
+    return 1
+  end
+
+  function sock:setsockname(ip, port)
+    self.bound = { ip = ip, port = port }
     return 1
   end
 
@@ -28,6 +34,16 @@ function cosock.socket.udp()
     self.sent[#self.sent + 1] = record
     cosock.sent[#cosock.sent + 1] = record
     return 1
+  end
+
+  --- Each queued item is `{ data = ..., ip = ..., port = ... }`; an empty
+  --- queue times out like a real socket.
+  function sock:receivefrom()
+    local item = table.remove(self.inbox, 1)
+    if not item then
+      return nil, "timeout"
+    end
+    return item.data, item.ip, item.port
   end
 
   function sock:close()
