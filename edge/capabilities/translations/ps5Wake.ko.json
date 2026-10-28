@@ -1,0 +1,13 @@
+{
+  "tag": "ko",
+  "label": "PS5 깨우기",
+  "attributes": {
+    "lastWake": {
+      "label": "마지막 깨우기"
+    },
+    "lastOutcome": {
+      "label": "마지막 깨우기 결과"
+    }
+  },
+  "commands": {}
+}

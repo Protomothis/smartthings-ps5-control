@@ -1,0 +1,16 @@
+{
+  "tag": "ko",
+  "label": "PS5 연결",
+  "attributes": {
+    "summary": {
+      "label": "상태"
+    },
+    "connection": {
+      "label": "서버 연결"
+    },
+    "lastSeen": {
+      "label": "마지막 확인"
+    }
+  },
+  "commands": {}
+}

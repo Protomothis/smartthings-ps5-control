@@ -1,0 +1,13 @@
+{
+  "tag": "en",
+  "label": "PS5 Remote Play",
+  "attributes": {
+    "summary": {
+      "label": "Remote Play"
+    },
+    "state": {
+      "label": "Remote Play registration"
+    }
+  },
+  "commands": {}
+}

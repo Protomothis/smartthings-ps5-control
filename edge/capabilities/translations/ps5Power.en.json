@@ -1,0 +1,29 @@
+{
+  "tag": "en",
+  "label": "PS5 power state",
+  "attributes": {
+    "powerState": {
+      "label": "Power state",
+      "i18n": {
+        "value": {
+          "on": {
+            "label": "On"
+          },
+          "standby": {
+            "label": "Rest mode"
+          },
+          "off": {
+            "label": "Off"
+          },
+          "waking": {
+            "label": "Waking"
+          },
+          "unknown": {
+            "label": "Unknown"
+          }
+        }
+      }
+    }
+  },
+  "commands": {}
+}

@@ -22,9 +22,10 @@ end
 
 function T.test_profile_matches_discovery()
   local discovery = require "discovery"
-  local text = host and host.readfile and host.readfile(h.SRC_DIR .. "/../profiles/ps5-v1.yml")
+  local file = h.SRC_DIR .. "/../profiles/" .. discovery.PROFILE:gsub("%.", "-") .. ".yml"
+  local text = host and host.readfile and host.readfile(file)
   if not text then
-    local f = io.open(h.SRC_DIR .. "/../profiles/ps5-v1.yml")
+    local f = io.open(file)
     if f then
       text = f:read("a")
       f:close()

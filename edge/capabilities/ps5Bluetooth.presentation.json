@@ -1,0 +1,56 @@
+{
+  "id": "numbersystem53811.ps5bluetooth",
+  "version": 1,
+  "dashboard": {
+    "states": [],
+    "actions": []
+  },
+  "detailView": [
+    {
+      "label": "{{i18n.attributes.summary.label}}",
+      "displayType": "state",
+      "state": {
+        "label": "{{summary.value}}"
+      }
+    }
+  ],
+  "automation": {
+    "conditions": [
+      {
+        "label": "{{i18n.attributes.state.label}}",
+        "displayType": "list",
+        "list": {
+          "value": "state.value",
+          "alternatives": [
+            {
+              "key": "ready",
+              "value": "준비됨 (Ready)",
+              "type": "active"
+            },
+            {
+              "key": "unsupported",
+              "value": "동글 미지원 (Unsupported dongle)",
+              "type": "inactive"
+            },
+            {
+              "key": "unconfigured",
+              "value": "주소 미설정 (Addresses not set)",
+              "type": "inactive"
+            },
+            {
+              "key": "unchecked",
+              "value": "확인 전 (Not checked)",
+              "type": "inactive"
+            },
+            {
+              "key": "error",
+              "value": "오류 (Error)",
+              "type": "inactive"
+            }
+          ]
+        }
+      }
+    ],
+    "actions": []
+  }
+}

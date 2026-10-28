@@ -110,7 +110,7 @@ function T.test_handle_creates_device_from_search_with_address()
   local spec = driver.created[1]
   h.assert_equal(spec.type, "LAN")
   h.assert_equal(spec.device_network_id, "ps5-control-srv1")
-  h.assert_equal(spec.profile, "ps5.v1")
+  h.assert_equal(spec.profile, discovery.PROFILE)
   h.assert_equal(spec.label, "PS5-A")
   h.assert_equal(spec.model, "PS5 Control · srv1")
   -- the address travels to `added` via adopt

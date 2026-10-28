@@ -7,7 +7,16 @@ local log = require "log"
 
 local discovery = require "discovery"
 local handlers = require "handlers"
+local poll = require "poll"
 local version = require "driver_version"
+
+-- Custom capabilities only resolve once the account owner has created them.
+-- Missing ones are logged and their rows skipped; switch and refresh work
+-- either way.
+local missing = poll.use_capabilities(capabilities)
+if #missing > 0 then
+  log.warn("custom capabilities not available yet: " .. table.concat(missing, ", "))
+end
 
 local ps5_driver = Driver("smartthings-ps5-control", {
   discovery = discovery.handle,

@@ -20,6 +20,9 @@ import (
 	"github.com/protomothis/smartthings-ps5-control/internal/wake"
 )
 
+// serversByURL lets a test reach the Server behind its httptest server.
+var serversByURL = map[string]*Server{}
+
 type fixture struct {
 	srv   *httptest.Server
 	store *config.Store

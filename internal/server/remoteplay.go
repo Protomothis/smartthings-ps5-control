@@ -127,6 +127,7 @@ func (s *Server) handleWake(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if state == discovery.StateOn && method != "bluetooth" {
+		s.noteWake("none", wake.OutcomeSuccess, "already on", nil)
 		writeJSON(w, http.StatusOK, wakeResponse{Method: "none", State: state, Outcome: wake.OutcomeSuccess})
 		return
 	}
@@ -139,6 +140,7 @@ func (s *Server) handleWake(w http.ResponseWriter, r *http.Request) {
 			netErr = err
 			s.logc("wake").Warn("network wake failed", "err", err.Error())
 		} else if st, ok := s.waitForState(ctx, c, s.timing.networkWakeTimeout, discovery.StateOn); ok {
+			s.noteWake("network", wake.OutcomeSuccess, "console answered discovery", nil)
 			writeJSON(w, http.StatusOK, wakeResponse{Method: "network", State: st, Outcome: wake.OutcomeSuccess})
 			return
 		} else {
@@ -153,6 +155,7 @@ func (s *Server) handleWake(w http.ResponseWriter, r *http.Request) {
 		if netErr == nil {
 			netErr = errors.New("network wake needs the console in rest mode")
 		}
+		s.noteWake("network", wake.OutcomeTimeout, "", netErr)
 		writeJSON(w, http.StatusGatewayTimeout, wakeResponse{Method: "network", State: state, Outcome: wake.OutcomeTimeout, Error: netErr.Error()})
 		return
 	}
@@ -161,6 +164,7 @@ func (s *Server) handleWake(w http.ResponseWriter, r *http.Request) {
 		if netErr != nil {
 			err = errors.Join(netErr, err)
 		}
+		s.noteWake("bluetooth", wake.OutcomeError, "", err)
 		writeJSON(w, http.StatusConflict, wakeResponse{Method: "bluetooth", State: state, Outcome: wake.OutcomeError, Error: err.Error()})
 		return
 	}
@@ -185,6 +189,11 @@ func (s *Server) handleWake(w http.ResponseWriter, r *http.Request) {
 	// The page was answered; the console boots for a while longer. The
 	// caller (the Edge driver) watches /status for it, so do not wait here.
 	resp := wakeResponse{Method: "bluetooth", State: state, Outcome: res.Outcome, Error: rec.Error, Bluetooth: &res}
+	outcome := res.Outcome
+	if err != nil {
+		outcome = wake.OutcomeError
+	}
+	s.noteWake("bluetooth", outcome, res.StatusText, err)
 	writeJSON(w, bluetoothStatusCode(err, res), resp)
 }
 
@@ -234,20 +243,24 @@ func (s *Server) handleStandby(w http.ResponseWriter, r *http.Request) {
 	}
 	if st.State != discovery.StateOn {
 		// Rest mode or off: nothing to do, and no session to open.
+		s.noteStandby(wake.OutcomeSuccess, nil)
 		writeJSON(w, http.StatusOK, standbyResponse{State: st.State, Outcome: wake.OutcomeSuccess})
 		return
 	}
 	s.logc("standby").Info("opening remote play session")
 	if err := s.deps.RemotePlay(c.PS5IP).Standby(ctx, *c.RemotePlay); err != nil {
 		s.logc("standby").Warn("standby failed", "err", err.Error())
+		s.noteStandby(wake.OutcomeError, err)
 		writeJSON(w, http.StatusBadGateway, standbyResponse{State: st.State, Outcome: wake.OutcomeError, Error: err.Error()})
 		return
 	}
 	state, ok := s.waitForState(ctx, c, s.timing.standbyTimeout, discovery.StateStandby, discovery.StateOff)
 	if !ok {
+		s.noteStandby(wake.OutcomeTimeout, errors.New("standby was sent but the console still reports on"))
 		writeJSON(w, http.StatusGatewayTimeout, standbyResponse{State: state, Outcome: wake.OutcomeTimeout, Error: "standby was sent but the console still reports on"})
 		return
 	}
+	s.noteStandby(wake.OutcomeSuccess, nil)
 	writeJSON(w, http.StatusOK, standbyResponse{State: state, Outcome: wake.OutcomeSuccess})
 }
 

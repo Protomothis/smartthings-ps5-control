@@ -7,6 +7,8 @@ local discovery = require "discovery"
 local log = require "log"
 local model = require "model"
 local poll = require "poll"
+local profiles = require "profiles"
+local rows = require "rows"
 local version = require "driver_version"
 
 local handlers = {}
@@ -29,6 +31,7 @@ function handlers.switch_on(driver, device, _cmd, deps)
   end
   device:set_field(poll.F_WAKING_UNTIL, now_of(deps) + model.WAKE_WINDOW_SECONDS, { persist = true })
   poll.emit_switch(device, "on", true, deps)
+  poll.emit_row(device, "power", "powerState", "waking", true, deps)
 
   local ok, body, kind = client.wake(device, deps)
   if ok then
@@ -48,6 +51,7 @@ function handlers.switch_on(driver, device, _cmd, deps)
     detail and (" (" .. tostring(detail) .. ")") or ""))
   device:set_field(poll.F_WAKING_UNTIL, nil, { persist = true })
   poll.emit_switch(device, poll.current_switch(device), true, deps)
+  poll.emit_row(device, "power", "powerState", rows.power(device:get_field(poll.F_POWER), false), true, deps)
 end
 
 --- switch.off: rest mode over Remote Play (`POST /standby`) unless the
@@ -87,12 +91,20 @@ end
 --- Device lifecycle.
 function handlers.init(driver, device, _event, deps)
   log.info(string.format("init %s (driver %s)", device.id, version))
+  -- A device keeps the screen it was created with; one on an older profile
+  -- moves to the current one, once, and every row is painted again.
+  local moved = profiles.ensure(device)
+  if moved then
+    log.info(string.format("%s: migrated to %s", device.id, moved))
+    poll.repaint(device)
+  end
   poll.start(driver, device, deps)
   poll.once(driver, device, deps)
 end
 
 function handlers.added(_driver, device, _event, deps)
   log.info("added " .. device.id)
+  profiles.remember(device, profiles.CURRENT)
   -- A device the search created arrives with the server's address.
   if discovery.adopt(device) then
     log.info(string.format("%s: using discovered address %s", device.id, tostring(device:get_field(discovery.F_IP))))

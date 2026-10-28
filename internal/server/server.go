@@ -70,6 +70,8 @@ type Server struct {
 	lastMu  sync.Mutex
 	lastRes *wakeRecord
 	timing  timing
+	adapter adapterCache
+	actions actions
 }
 
 type wakeRecord struct {
@@ -155,8 +157,9 @@ func writeError(w http.ResponseWriter, code int, err error) {
 // statusResponse is what GET /status returns.
 type statusResponse struct {
 	discovery.Status
-	CheckedAt time.Time `json:"checked_at"`
-	Host      string    `json:"host"`
+	CheckedAt time.Time  `json:"checked_at"`
+	Host      string     `json:"host"`
+	Server    serverInfo `json:"server"`
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -172,7 +175,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, statusResponse{Status: st, CheckedAt: time.Now(), Host: c.PS5IP})
+	writeJSON(w, http.StatusOK, statusResponse{Status: st, CheckedAt: time.Now(), Host: c.PS5IP, Server: s.info(c, st.State == discovery.StateOn)})
 }
 
 // bluetoothErrorCode maps a failed Bluetooth wake to an HTTP status.

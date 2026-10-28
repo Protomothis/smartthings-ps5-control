@@ -8,9 +8,11 @@
 -- (`plan`, `should_search`) are pure; only `collect`/`search` touch a socket,
 -- and they take an injectable `deps.socket`.
 
+local profiles = require "profiles"
+
 local discovery = {}
 
-discovery.PROFILE = "ps5.v1"
+discovery.PROFILE = profiles.CURRENT
 discovery.DNI_PREFIX = "ps5-control-"
 discovery.MANUFACTURER = "Protomothis"
 discovery.MODEL = "PS5 Control"

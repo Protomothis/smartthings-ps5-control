@@ -151,6 +151,25 @@ SSDP 검색, push 구독, 프로필 생성기, i18n — 이 드라이버는 표�
 - 실측 대기: 등록 검색(UDP 9295 바인드)이 호스트 네트워크 컨테이너에서 되는지, 세션 `ctrl` 응답 뒤 패킷 스트림,
   PIN 등록 뒤 PS5 가 보이는 닉네임, 휴식 모드 전환까지 걸리는 시간, 로그인 비밀번호 사용자의 `ErrPasscode`.
 
+### 드라이버 화면: 커스텀 capability (2026-10-28)
+
+표준 `switch` 만으로는 켜짐/꺼짐뿐이라 pc-control 과 같은 방식으로 커스텀 capability 를 뒀다.
+
+- 앱은 한 capability 의 `state` 줄이 둘이면 반폭으로 잘라 그리므로, **보이는 줄 하나당 capability 하나**:
+  `ps5Power`(powerState enum, 타일 라벨 + 루틴 조건), `ps5Info`(summary 줄 + connection 조건 + lastSeen),
+  `ps5Wake`(lastWake 줄 + lastOutcome 조건), `ps5Bluetooth`(summary 줄 + state 조건), `ps5RemotePlay`(summary 줄 +
+  state 조건), `ps5Version`(versions 줄). 값 문구는 프레젠테이션 `alternatives` 에 "한국어 (English)" 병기,
+  자유 문자열은 한국어(앱이 값은 번역하지 않음).
+- 서버 `/status` 에 `server` 블록을 더해 한 번의 폴링으로 모든 줄을 채운다. 동글 확인(`wake.Inspect`)은 10분
+  캐시에 백그라운드 갱신이라 폴링 응답이 느려지지 않는다.
+- emit 규칙(`poll.emit_row`): 같은 값은 안 보내고(`rows_sent`, 실행마다 비움 → 실행마다 첫 전송은 강제),
+  10분에 한 번 재전송, 명령 응답은 강제. 줄은 switch 포함 12개라 30초 폴링이 고른 상태에선 아무것도 안 낸다.
+- 프로필 `ps5.v2`(카테고리 `Switch` — 앱의 아이콘 바꾸기가 되는 카테고리). `profiles.ensure` 가 `init` 에서
+  v1 장치를 `try_update_metadata` 로 옮기고 `poll.repaint` 로 전 줄을 다시 보낸다. 화면을 또 바꾸면 v3 파일.
+- capability 생성은 `edge/tools/capabilities.sh create`(2026-10-28 계정에 생성 완료). 정의·프레젠테이션을 바꾸려면
+  새 id 가 필요하다(허브 캐시·첫 프레젠테이션 고정).
+- 실측 대기: 타일의 powerState 라벨, 각 줄의 문구 길이, 이전(v1→v2) 뒤 전 줄이 채워지는지.
+
 ### 로깅 (2026-10-21)
 
 - `internal/logx`: `log/slog` 핸들러 하나가 stderr(컨테이너 로그) · 회전 파일 · 메모리 링(500줄)에 같은 줄을 쓴다.

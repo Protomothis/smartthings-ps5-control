@@ -1,0 +1,13 @@
+{
+  "tag": "en",
+  "label": "PS5 wake",
+  "attributes": {
+    "lastWake": {
+      "label": "Last wake"
+    },
+    "lastOutcome": {
+      "label": "Last wake result"
+    }
+  },
+  "commands": {}
+}

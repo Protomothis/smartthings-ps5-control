@@ -104,6 +104,7 @@ func rpFixture(t *testing.T, registered bool, states ...discovery.State) (*httpt
 	s := New(store, deps, Auth{User: "admin", Pass: "secret"}, "test", slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 	s.timing = timing{pollInterval: 10 * time.Millisecond, networkWakeTimeout: 200 * time.Millisecond, standbyTimeout: 200 * time.Millisecond}
 	ts := httptest.NewServer(s.Handler())
+	serversByURL[ts.URL] = s
 	t.Cleanup(ts.Close)
 	return ts, store, rp, fd
 }

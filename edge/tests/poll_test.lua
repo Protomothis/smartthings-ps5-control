@@ -19,6 +19,12 @@ function T.test_once_emits_switch_and_marks_online()
   local values = h.switch_values(device)
   h.assert_equal(#values, 1)
   h.assert_equal(values[1], "on")
+  h.assert_true(h.last_switch_forced(device), "first emit of a row per run is forced")
+  -- a changed value later in the run goes out unforced
+  local http2 = h.http({ status("standby") })
+  clock.advance(30)
+  poll.once(nil, device, h.deps(http2, clock))
+  h.assert_equal(h.switch_values(device)[2], "off")
   h.assert_false(h.last_switch_forced(device))
 end
 
@@ -82,8 +88,7 @@ function T.test_follow_wake_gives_up_and_springs_back()
   local http = h.http({ status("standby") })
   local deps = h.deps(http, clock)
   device.fields[poll.F_WAKING_UNTIL] = clock.now() + model.WAKE_WINDOW_SECONDS
-  device.fields[poll.F_SWITCH_SENT] = "on"     -- the optimistic "on"
-  device.fields[poll.F_SWITCH_SENT_AT] = clock.now()
+  device.fields[poll.F_ROWS_SENT] = { ["switch.switch"] = { value = "on", at = clock.now() } } -- the optimistic "on"
   poll.follow_wake(driver, device, deps)
   clock.advance(model.WAKE_WINDOW_SECONDS + 1)
   driver:fire("ps5-wake-follow")

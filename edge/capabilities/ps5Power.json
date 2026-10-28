@@ -1,0 +1,24 @@
+{
+  "id": "numbersystem53811.ps5power",
+  "version": 1,
+  "status": "proposed",
+  "name": "ps5Power",
+  "ephemeral": false,
+  "attributes": {
+    "powerState": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": ["on","standby","off","waking","unknown"]
+          }
+        },
+        "additionalProperties": false,
+        "required": ["value"]
+      },
+      "enumCommands": []
+    }
+  },
+  "commands": {}
+}

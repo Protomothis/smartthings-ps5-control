@@ -1,0 +1,56 @@
+{
+  "id": "numbersystem53811.ps5info",
+  "version": 1,
+  "dashboard": {
+    "states": [],
+    "actions": []
+  },
+  "detailView": [
+    {
+      "label": "{{i18n.attributes.summary.label}}",
+      "displayType": "state",
+      "state": {
+        "label": "{{summary.value}}"
+      }
+    }
+  ],
+  "automation": {
+    "conditions": [
+      {
+        "label": "{{i18n.attributes.connection.label}}",
+        "displayType": "list",
+        "list": {
+          "value": "connection.value",
+          "alternatives": [
+            {
+              "key": "ok",
+              "value": "연결됨 (Connected)",
+              "type": "active"
+            },
+            {
+              "key": "unauthorized",
+              "value": "시크릿 불일치 (Wrong secret)",
+              "type": "inactive"
+            },
+            {
+              "key": "unreachable",
+              "value": "서버 응답 없음 (Server unreachable)",
+              "type": "inactive"
+            },
+            {
+              "key": "unconfigured",
+              "value": "서버 설정 없음 (Server not configured)",
+              "type": "inactive"
+            },
+            {
+              "key": "incompatible",
+              "value": "버전 불일치 (Incompatible)",
+              "type": "inactive"
+            }
+          ]
+        }
+      }
+    ],
+    "actions": []
+  }
+}
