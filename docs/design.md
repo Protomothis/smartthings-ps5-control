@@ -115,7 +115,7 @@ SSDP 검색, push 구독, 프로필 생성기, i18n — 이 드라이버는 표�
   pc-control 의 묶음 분할은 필요 없다.
 - **서버 불통과 PS5 꺼짐은 다르다.** HTTP 가 안 오면 `device:offline()`, 오면 `online()`. 스위치 값은 마지막
   값을 유지한다.
-- 실측 대기: 허브에서 `GameConsole` 카테고리 아이콘, `device:online/offline` 표시, 60초 TIMEOUT 이 cosock
+- 실측: `GameConsole` 은 API 가 거절(NotValidValue, 2026-10-28) → `Others`. 드라이버는 Dev 채널(Protomothis Dev)에 올라감(driverId d0946d3a…). 대기: `device:online/offline` 표시, 60초 TIMEOUT 이 cosock
   에서 실제로 먹는지, 깨우기 뒤 PS5 가 9302 에 답하기까지의 시간(90초 창의 근거).
 
 ### Remote Play: 휴식 모드 전환과 네트워크 깨우기 (2026-10-21, v0.1.0 에 포함)
