@@ -10,8 +10,10 @@ components:
         version: 1
       - id: refresh
         version: 1
+    # GameConsole is not a valid category (the API rejected it on 2026-10-28
+    # with NotValidValue); Others is what pc-control defaults to as well.
     categories:
-      - name: GameConsole
+      - name: Others
 preferences:
   - name: serverAddress
     title: 서버 주소 (Server address)
