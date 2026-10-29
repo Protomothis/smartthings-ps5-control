@@ -16,7 +16,7 @@ cd "$(dirname "$0")/.."
 
 PVE_HOST="${PVE_HOST:-root@192.168.1.55}"
 CT="${CT:-105}"
-VERSION="$(git describe --always --dirty)-$(date +%Y%m%d%H%M)"
+VERSION="$(git describe --always --dirty --match 'v*')-$(date +%Y%m%d%H%M)"
 OUT="${TMPDIR:-${TEMP:-/tmp}}/ps5ctl-linux-amd64"
 
 echo "==> building $VERSION"
