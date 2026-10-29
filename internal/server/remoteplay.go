@@ -166,14 +166,24 @@ func (s *Server) handleWake(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if method == "network" {
-		if netErr == nil {
-			netErr = c.RemotePlayReady()
+		switch {
+		case netErr != nil:
+			// The wake was sent (or refused by the console) and the console
+			// did not come up.
+			s.noteWake("network", wake.OutcomeTimeout, "", netErr)
+			writeJSON(w, http.StatusGatewayTimeout, wakeResponse{Method: "network", State: state, Outcome: wake.OutcomeTimeout, Error: netErr.Error()})
+		case s.deps.RemotePlay == nil:
+			writeJSON(w, http.StatusNotImplemented, wakeResponse{Method: "network", State: state, Outcome: wake.OutcomeError, Error: "remote play is not available in this build"})
+		default:
+			// Not attempted: no registration, or the console is not in rest
+			// mode (a console that is fully off needs Bluetooth).
+			err := c.RemotePlayReady()
+			if err == nil {
+				err = errors.New("network wake needs the console in rest mode")
+			}
+			s.noteWake("network", wake.OutcomeError, "", err)
+			writeJSON(w, http.StatusConflict, wakeResponse{Method: "network", State: state, Outcome: wake.OutcomeError, Error: err.Error()})
 		}
-		if netErr == nil {
-			netErr = errors.New("network wake needs the console in rest mode")
-		}
-		s.noteWake("network", wake.OutcomeTimeout, "", netErr)
-		writeJSON(w, http.StatusGatewayTimeout, wakeResponse{Method: "network", State: state, Outcome: wake.OutcomeTimeout, Error: netErr.Error()})
 		return
 	}
 
@@ -195,21 +205,17 @@ func (s *Server) handleWake(w http.ResponseWriter, r *http.Request) {
 		RetryDelay: c.WakeRetryDelay(),
 		Log:        func(f string, a ...any) { s.logc("wake").Info(fmt.Sprintf(f, a...)) },
 	})
-	rec := &wakeRecord{At: time.Now(), Result: res}
-	if err != nil {
-		rec.Error = err.Error()
-	}
-	s.lastMu.Lock()
-	s.lastRes = rec
-	s.lastMu.Unlock()
-
 	// The page was answered; the console boots for a while longer. The
 	// caller (the Edge driver) watches /status for it, so do not wait here.
-	resp := wakeResponse{Method: "bluetooth", State: state, Outcome: res.Outcome, Error: rec.Error, Bluetooth: &res}
 	outcome := res.Outcome
+	resp := wakeResponse{Method: "bluetooth", State: state, Bluetooth: &res}
 	if err != nil {
+		// A failure before or during the sequence (unsupported chipset,
+		// permissions, I/O) has no outcome of its own.
 		outcome = wake.OutcomeError
+		resp.Error = err.Error()
 	}
+	resp.Outcome = outcome
 	s.noteWake("bluetooth", outcome, res.StatusText, err)
 	writeJSON(w, bluetoothStatusCode(err, res), resp)
 }
@@ -237,12 +243,17 @@ type standbyResponse struct {
 // handleStandby puts a console that is on into rest mode over Remote Play.
 func (s *Server) handleStandby(w http.ResponseWriter, r *http.Request) {
 	c := s.cfg.Get()
+	// Every refusal is recorded: the device screen shows the last standby
+	// and its reason, whether or not a session was opened.
 	if err := c.RemotePlayReady(); err != nil {
+		s.noteStandby(wake.OutcomeError, err)
 		writeJSON(w, http.StatusConflict, standbyResponse{Outcome: wake.OutcomeError, Error: err.Error()})
 		return
 	}
 	if s.deps.RemotePlay == nil {
-		writeJSON(w, http.StatusNotImplemented, standbyResponse{Outcome: wake.OutcomeError, Error: "remote play is not available in this build"})
+		err := errors.New("remote play is not available in this build")
+		s.noteStandby(wake.OutcomeError, err)
+		writeJSON(w, http.StatusNotImplemented, standbyResponse{Outcome: wake.OutcomeError, Error: err.Error()})
 		return
 	}
 	if !s.wakeMu.TryLock() {
@@ -255,6 +266,7 @@ func (s *Server) handleStandby(w http.ResponseWriter, r *http.Request) {
 
 	st, err := s.deps.Probe(ctx, c.PS5IP, c.StatusTimeout())
 	if err != nil {
+		s.noteStandby(wake.OutcomeError, err)
 		writeJSON(w, http.StatusBadGateway, standbyResponse{Outcome: wake.OutcomeError, Error: err.Error()})
 		return
 	}

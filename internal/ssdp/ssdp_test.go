@@ -67,7 +67,7 @@ func TestServeAnswers(t *testing.T) {
 	r := &Responder{Info: func() Info { return Info{ID: "id1", Name: "PS5", Version: "t", Port: 8580} }}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
-	go func() { r.serve(ctx, recv, recv, net.IPv4(127, 0, 0, 1)); close(done) }()
+	go func() { r.serve(ctx, &socket{recv: recv, send: recv, localIP: net.IPv4(127, 0, 0, 1)}); close(done) }()
 
 	search := "M-SEARCH * HTTP/1.1\r\nMAN: \"ssdp:discover\"\r\nMX: 0\r\nST: " + ST + "\r\n\r\n"
 	buf := make([]byte, 2048)

@@ -80,7 +80,17 @@ func (s *Server) bluetooth(c config.Config) bluetoothInfo {
 }
 
 func (s *Server) refreshAdapter(adapter string) {
+	// Inspect talks to the adapter (bring-up, version, address); during a
+	// wake the address is spoofed and a reset is in flight, so wait for the
+	// next poll instead of racing it.
+	if !s.wakeMu.TryLock() {
+		s.adapter.mu.Lock()
+		s.adapter.refreshing = false
+		s.adapter.mu.Unlock()
+		return
+	}
 	ai, err := s.deps.Inspect(adapter)
+	s.wakeMu.Unlock()
 	now := time.Now()
 	info := bluetoothInfo{Checked: true, Adapter: adapter, CheckedAt: &now}
 	if err != nil {

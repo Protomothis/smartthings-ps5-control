@@ -33,33 +33,6 @@ function rows.ago(seen, now)
   return math.floor(d / 86400) .. "일 전"
 end
 
---- Epoch from an RFC 3339 timestamp like 2026-10-28T12:23:18.41+09:00, in
---- local time; nil when it cannot be read.
-function rows.parse_time(s)
-  if type(s) ~= "string" then
-    return nil
-  end
-  local y, mo, d, h, mi, sec = s:match("^(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+)")
-  if not y then
-    return nil
-  end
-  local frac = s:match("^%d+%-%d+%-%d+T%d+:%d+:%d+(%.%d+)") or ""
-  local rest = s:sub(#("2026-10-28T12:23:18") + #frac + 1)
-  local t = os.time({ year = tonumber(y), month = tonumber(mo), day = tonumber(d), hour = tonumber(h), min = tonumber(mi), sec = tonumber(sec) })
-  if not t then
-    return nil
-  end
-  -- os.time read the fields as local time; shift by the difference between
-  -- the stamp's offset and ours.
-  local local_offset = os.difftime(t, os.time(os.date("!*t", t)))
-  local offset = 0
-  local sign, oh, om = rest:match("^([%+%-])(%d%d):(%d%d)")
-  if sign then
-    offset = (tonumber(oh) * 3600 + tonumber(om) * 60) * (sign == "-" and -1 or 1)
-  end
-  return t + local_offset - offset
-end
-
 rows.POWER_LABEL = { on = "켜짐", standby = "휴식 모드", off = "꺼짐", waking = "깨우는 중", unknown = "알 수 없음" }
 
 --- The powerState value for a status body (plus the driver's own wake window).

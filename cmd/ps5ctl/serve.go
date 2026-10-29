@@ -149,5 +149,12 @@ func cmdServe(ctx context.Context, args []string) int {
 	for _, s := range servers {
 		_ = s.Shutdown(shutdownCtx)
 	}
+	// A wake or standby keeps running after its request was answered or
+	// abandoned; let it finish so the dongle gets its own address back.
+	idleCtx, cancelIdle := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancelIdle()
+	if !srv.WaitIdle(idleCtx) {
+		logger.Warn("exiting with a wake or standby still in progress")
+	}
 	return code
 }

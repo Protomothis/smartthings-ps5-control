@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	_ "time/tzdata" // the scratch image has no zoneinfo; TZ=Asia/Seoul must still work
 
 	"github.com/protomothis/smartthings-ps5-control/internal/btaddr"
 	"github.com/protomothis/smartthings-ps5-control/internal/discovery"

@@ -27,15 +27,18 @@ function profiles.name_of(device)
   if type(device) ~= "table" then
     return nil
   end
+  -- The hub's own view first: a migration is only requested
+  -- (try_update_metadata is asynchronous), so the stored name says what was
+  -- asked for, not what the device is on.
+  local p = device.profile
+  if type(p) == "table" and type(p.name) == "string" and p.name ~= "" then
+    return p.name
+  end
   if type(device.get_field) == "function" then
     local stored = device:get_field(profiles.F_NAME)
     if type(stored) == "string" and stored ~= "" then
       return stored
     end
-  end
-  local p = device.profile
-  if type(p) == "table" and type(p.name) == "string" and p.name ~= "" then
-    return p.name
   end
   return nil
 end

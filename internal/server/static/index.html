@@ -736,7 +736,8 @@
       const r = await api("POST", "/standby");
       const d = r.data;
       if (r.ok) {
-        result("actResult", "ok", d.state === "on" ? "휴식 모드 요청을 보냈습니다" : "휴식 모드입니다", d.state && d.state !== "standby" ? `현재 상태: ${STATE[d.state] || d.state}` : "");
+        // 200 only comes with the console confirmed in rest mode or off.
+        result("actResult", "ok", "휴식 모드입니다", d.state === "off" ? "PS5 가 완전히 꺼져 있습니다." : "");
         refreshStatus(true);
         return;
       }

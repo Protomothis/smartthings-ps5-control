@@ -149,11 +149,6 @@ func TestWakeOutcomes(t *testing.T) {
 	if code != 501 || !strings.Contains(m["error"].(string), "Realtek") {
 		t.Fatalf("%d %v", code, m)
 	}
-
-	code, m = f.do(t, "GET", "/api/wake/last", "", false)
-	if code != 200 || m["error"] == nil {
-		t.Fatalf("last: %d %v", code, m)
-	}
 }
 
 func TestWakeBusy(t *testing.T) {

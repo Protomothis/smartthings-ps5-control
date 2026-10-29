@@ -75,7 +75,7 @@ BD_ADDR 변경은 표준 HCI 명령이 없어 칩셋별 벤더 명령을 씁니�
 | `https://<서버>:8543/` | 설정 페이지 (`/api/config`, `/api/info`, `/api/remoteplay*`, `/api/logs` 포함) | basic auth |
 | `/api/adapter`, `/healthz`, `/ssdp.json` | 동글 정보, 헬스체크, SSDP 응답이 가리키는 설명(설치 ID · 이름 · 포트) | 없음 |
 
-환경변수: `PS5_AUTH_USER` · `PS5_AUTH_PASS`(없으면 설정 페이지가 503 으로 닫힘), `PS5_HTTP_ADDR`(`:8580`), `PS5_HTTPS_ADDR`(`:8543`), `PS5_TLS_HOSTS`, `PS5_DATA`(`/data`), `PS5_LOG_LEVEL`(`info`; `debug` 면 HTTP 요청까지), `PS5_SSDP`(`on`; `off` 면 허브의 검색에 답하지 않음).
+환경변수: `PS5_AUTH_USER` · `PS5_AUTH_PASS`(없으면 설정 페이지가 503 으로 닫힘), `PS5_HTTP_ADDR`(`:8580`), `PS5_HTTPS_ADDR`(`:8543`), `PS5_TLS_HOSTS`, `PS5_DATA`(`/data`), `PS5_LOG_LEVEL`(`info`; `debug` 면 HTTP 요청까지), `PS5_SSDP`(`on`; `off` 면 허브의 검색에 답하지 않음), `TZ`(`Asia/Seoul`; 상태·로그의 시각이 이 시간대로 찍히고 드라이버는 그대로 보여 줌).
 CLI 로도 같은 일을 합니다: `ps5ctl status --ip <PS5>` · `sudo ps5ctl adapter` · `sudo ps5ctl wake --controller … --ps5 …` · `ps5ctl rp account|register|wake|standby`.
 
 ### Remote Play 와 로그
