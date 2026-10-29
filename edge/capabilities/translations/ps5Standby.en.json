@@ -6,7 +6,23 @@
       "label": "Last rest mode"
     },
     "lastOutcome": {
-      "label": "Last rest mode result"
+      "label": "Last rest mode result",
+      "i18n": {
+        "value": {
+          "success": {
+            "label": "Success"
+          },
+          "timeout": {
+            "label": "No answer"
+          },
+          "error": {
+            "label": "Failed"
+          },
+          "none": {
+            "label": "None"
+          }
+        }
+      }
     }
   },
   "commands": {}

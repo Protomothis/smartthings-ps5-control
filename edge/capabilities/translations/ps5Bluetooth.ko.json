@@ -6,7 +6,26 @@
       "label": "블루투스 동글"
     },
     "state": {
-      "label": "블루투스"
+      "label": "블루투스",
+      "i18n": {
+        "value": {
+          "ready": {
+            "label": "준비됨"
+          },
+          "unsupported": {
+            "label": "주소 변경 미지원"
+          },
+          "unconfigured": {
+            "label": "주소 미설정"
+          },
+          "unchecked": {
+            "label": "확인 전"
+          },
+          "error": {
+            "label": "오류"
+          }
+        }
+      }
     }
   },
   "commands": {}

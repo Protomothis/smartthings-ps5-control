@@ -6,7 +6,23 @@
       "label": "마지막 깨우기"
     },
     "lastOutcome": {
-      "label": "마지막 깨우기 결과"
+      "label": "마지막 깨우기 결과",
+      "i18n": {
+        "value": {
+          "success": {
+            "label": "성공"
+          },
+          "timeout": {
+            "label": "응답 없음"
+          },
+          "error": {
+            "label": "실패"
+          },
+          "none": {
+            "label": "없음"
+          }
+        }
+      }
     }
   },
   "commands": {}

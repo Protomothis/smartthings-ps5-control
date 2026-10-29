@@ -6,7 +6,26 @@
       "label": "Bluetooth dongle"
     },
     "state": {
-      "label": "Bluetooth"
+      "label": "Bluetooth",
+      "i18n": {
+        "value": {
+          "ready": {
+            "label": "Ready"
+          },
+          "unsupported": {
+            "label": "Unsupported"
+          },
+          "unconfigured": {
+            "label": "Not configured"
+          },
+          "unchecked": {
+            "label": "Not checked"
+          },
+          "error": {
+            "label": "Error"
+          }
+        }
+      }
     }
   },
   "commands": {}

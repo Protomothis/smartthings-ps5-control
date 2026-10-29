@@ -6,7 +6,17 @@
       "label": "Remote Play"
     },
     "state": {
-      "label": "Remote Play 등록"
+      "label": "Remote Play 등록",
+      "i18n": {
+        "value": {
+          "registered": {
+            "label": "등록됨"
+          },
+          "unregistered": {
+            "label": "미등록"
+          }
+        }
+      }
     }
   },
   "commands": {}

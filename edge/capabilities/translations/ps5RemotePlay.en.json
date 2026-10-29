@@ -6,7 +6,17 @@
       "label": "Remote Play"
     },
     "state": {
-      "label": "Remote Play registration"
+      "label": "Remote Play registration",
+      "i18n": {
+        "value": {
+          "registered": {
+            "label": "Registered"
+          },
+          "unregistered": {
+            "label": "Not registered"
+          }
+        }
+      }
     }
   },
   "commands": {}
