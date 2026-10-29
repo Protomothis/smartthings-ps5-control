@@ -1,0 +1,13 @@
+{
+  "tag": "en",
+  "label": "PS5 rest mode",
+  "attributes": {
+    "lastStandby": {
+      "label": "Last rest mode"
+    },
+    "lastOutcome": {
+      "label": "Last rest mode result"
+    }
+  },
+  "commands": {}
+}

@@ -82,10 +82,27 @@ type timing struct {
 	pollInterval       time.Duration
 	networkWakeTimeout time.Duration
 	standbyTimeout     time.Duration
+	// standbyRetryDelay is the pause before the one retry of a standby the
+	// console refused (see standbyRetryable).
+	standbyRetryDelay time.Duration
 }
 
 func defaultTiming() timing {
-	return timing{pollInterval: 2 * time.Second, networkWakeTimeout: 30 * time.Second, standbyTimeout: 30 * time.Second}
+	return timing{pollInterval: 2 * time.Second, networkWakeTimeout: 30 * time.Second, standbyTimeout: 30 * time.Second, standbyRetryDelay: 20 * time.Second}
+}
+
+// standbyRetryable reports whether a failed standby is worth one more try
+// after a pause: the console reset the session connection, or it answered
+// that Remote Play is already in use (80108b10). Seen on 2026-10-28 with no
+// other client around: the first attempt was reset and the retry 14 s later
+// got "in use", so the console keeps a half-opened session for a while and
+// a second try must wait it out.
+func standbyRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "80108b10") || strings.Contains(msg, "connection reset")
 }
 
 // wakeResponse is what POST /wake returns.
@@ -233,7 +250,7 @@ func (s *Server) handleStandby(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer s.wakeMu.Unlock()
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), s.timing.standbyTimeout+30*time.Second)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), s.timing.standbyTimeout+s.timing.standbyRetryDelay+30*time.Second)
 	defer cancel()
 
 	st, err := s.deps.Probe(ctx, c.PS5IP, c.StatusTimeout())
@@ -247,9 +264,22 @@ func (s *Server) handleStandby(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, standbyResponse{State: st.State, Outcome: wake.OutcomeSuccess})
 		return
 	}
-	s.logc("standby").Info("opening remote play session")
-	if err := s.deps.RemotePlay(c.PS5IP).Standby(ctx, *c.RemotePlay); err != nil {
-		s.logc("standby").Warn("standby failed", "err", err.Error())
+	log := s.logc("standby")
+	log.Info("opening remote play session")
+	err = s.deps.RemotePlay(c.PS5IP).Standby(ctx, *c.RemotePlay)
+	if err != nil && standbyRetryable(err) {
+		log.Warn("standby refused, trying once more", "err", err.Error(), "after", s.timing.standbyRetryDelay.String())
+		select {
+		case <-time.After(s.timing.standbyRetryDelay):
+		case <-ctx.Done():
+		}
+		if ctx.Err() == nil {
+			log.Info("opening remote play session (retry)")
+			err = s.deps.RemotePlay(c.PS5IP).Standby(ctx, *c.RemotePlay)
+		}
+	}
+	if err != nil {
+		log.Warn("standby failed", "err", err.Error())
 		s.noteStandby(wake.OutcomeError, err)
 		writeJSON(w, http.StatusBadGateway, standbyResponse{State: st.State, Outcome: wake.OutcomeError, Error: err.Error()})
 		return

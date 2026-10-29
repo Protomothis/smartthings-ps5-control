@@ -2,7 +2,7 @@
 
 ps5-control 서버를 위한 SmartThings Edge 드라이버다. 허브 안에서 로컬로 돌면서
 서버의 `GET /status` · `POST /wake` · `POST /standby` 를 호출한다. 표준 `switch` · `refresh` 에
-커스텀 capability 여섯(전원 상태 · 상태 · 마지막 깨우기 · 블루투스 동글 · Remote Play · 버전)을 더한다.
+커스텀 capability 일곱(전원 상태 · 상태 · 마지막 깨우기 · 마지막 휴식 모드 · 블루투스 동글 · Remote Play · 버전)을 더한다.
 
 - **스위치 = PS5 전원** — 켜짐이면 켜짐, 휴식 모드·완전 종료면 꺼짐
 - **스위치 켜기 = 깨우기** — 서버가 휴식 모드면 네트워크(Remote Play), 아니면 블루투스로 깨운다. 끝날 때까지 기다렸다가 90초 동안 5초마다 확인. 안 켜지면 되돌아간다

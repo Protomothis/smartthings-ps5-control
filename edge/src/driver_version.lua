@@ -2,4 +2,4 @@
 -- single source of truth: it goes into the HTTP User-Agent
 -- ("smartthings-ps5-control-edge/<version>") and the `edge-vX.Y.Z` release
 -- tag must match it (.github/workflows/edge.yml checks).
-return "0.1.0"
+return "0.1.1"

@@ -64,6 +64,9 @@ func TestProbeAgainstFakeConsole(t *testing.T) {
 		if string(buf[:n]) != probePayload {
 			return
 		}
+		// The console sends other UDP traffic too; a datagram that is not a
+		// discovery reply must be waited out, not reported as an error.
+		srv.WriteToUDP([]byte{0xb0, 'a', 'G'}, from)
 		srv.WriteToUDP([]byte("HTTP/1.1 620 Server Standby\nhost-type:PS5\n"), from)
 	}()
 	st, err := Probe(context.Background(), "127.0.0.1", 2*time.Second)

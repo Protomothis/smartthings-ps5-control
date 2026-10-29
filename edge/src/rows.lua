@@ -98,6 +98,57 @@ function rows.last_wake(rec)
   return table.concat(parts, " · "), outcome
 end
 
+-- Why a standby failed, in words the device screen can show. The server's
+-- error text is English and carries the console's hex code.
+local STANDBY_REASONS = {
+  { "80108b10", "Remote Play 사용 중" },
+  { "connection reset", "PS5 가 연결을 끊음" },
+  { "passcode", "로그인 비밀번호 걸림" },
+  { "still reports on", "아직 켜짐" },
+  { "not registered", "Remote Play 미등록" },
+  { "deadline exceeded", "시간 초과" },
+}
+
+--- The reason text for a standby error string ("" when there is none).
+function rows.standby_reason(err)
+  if type(err) ~= "string" or err == "" then
+    return ""
+  end
+  local lower = err:lower()
+  for _, pair in ipairs(STANDBY_REASONS) do
+    if lower:find(pair[1], 1, true) then
+      return pair[2]
+    end
+  end
+  if #err > 40 then
+    return err:sub(1, 40) .. "…"
+  end
+  return err
+end
+
+--- The last-standby text and enum from the server record (may be nil):
+--- "23:52 · 실패 · Remote Play 사용 중" or "11:26 · 성공".
+function rows.last_standby(rec)
+  if type(rec) ~= "table" then
+    return "없음", "none"
+  end
+  local parts = {}
+  local at = rows.clock_of(rec.at)
+  if at ~= "" then
+    parts[#parts + 1] = at
+  end
+  parts[#parts + 1] = OUTCOME_LABEL[rec.outcome] or tostring(rec.outcome or "")
+  local outcome = rec.outcome
+  if outcome ~= "success" and outcome ~= "timeout" then
+    outcome = "error"
+  end
+  local reason = rows.standby_reason(rec.error)
+  if outcome ~= "success" and reason ~= "" then
+    parts[#parts + 1] = reason
+  end
+  return table.concat(parts, " · "), outcome
+end
+
 --- The Bluetooth text and enum from the server's bluetooth block.
 function rows.bluetooth(bt)
   bt = bt or {}
@@ -155,6 +206,9 @@ function rows.from_status(body, _now, waking, driver_version)
   local wake_text, wake_outcome = rows.last_wake(srv.last_wake)
   add("wake", "lastWake", wake_text)
   add("wake", "lastOutcome", wake_outcome)
+  local sb_text, sb_outcome = rows.last_standby(srv.last_standby)
+  add("standby", "lastStandby", sb_text)
+  add("standby", "lastOutcome", sb_outcome)
   local bt_text, bt_state = rows.bluetooth(srv.bluetooth)
   add("bluetooth", "summary", bt_text)
   add("bluetooth", "state", bt_state)

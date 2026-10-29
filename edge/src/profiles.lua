@@ -9,10 +9,10 @@
 
 local profiles = {}
 
-profiles.VERSION = 2
+profiles.VERSION = 3
 profiles.CURRENT = "ps5.v" .. profiles.VERSION
 -- Every name this driver ever shipped, oldest first.
-profiles.KNOWN = { "ps5.v1", profiles.CURRENT }
+profiles.KNOWN = { "ps5.v1", "ps5.v2", profiles.CURRENT }
 
 -- Remembered at creation: `device.profile.name` is not always exposed.
 profiles.F_NAME = "profile_name"

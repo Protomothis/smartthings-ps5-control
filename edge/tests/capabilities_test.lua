@@ -8,7 +8,7 @@ local profiles = require "profiles"
 local T = {}
 
 local DIR = h.SRC_DIR .. "/../capabilities"
-local NAMES = { "ps5Power", "ps5Info", "ps5Wake", "ps5Bluetooth", "ps5RemotePlay", "ps5Version" }
+local NAMES = { "ps5Power", "ps5Info", "ps5Wake", "ps5Standby", "ps5Bluetooth", "ps5RemotePlay", "ps5Version" }
 
 local function read(path)
   if host and host.readfile then

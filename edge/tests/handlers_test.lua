@@ -80,12 +80,14 @@ end
 function T.test_switch_off_failure_springs_back()
   local device, clock = h.device(), h.clock()
   device.fields[poll.F_POWER] = "on"
-  local http = h.http({ { code = 409, body = '{"error":"not configured: remote_play"}' } })
+  local http = h.http({ { code = 409, body = '{"error":"not configured: remote_play"}' }, status("on") })
   handlers.switch_off(nil, device, {}, h.deps(http, clock))
   local values = h.switch_values(device)
   h.assert_equal(values[1], "off")
   h.assert_equal(values[2], "on", "springs back")
   h.assert_true(h.last_switch_forced(device))
+  h.assert_equal(#http.requests, 2, "a poll follows the failure so the rest-mode row shows the reason")
+  h.assert_equal(http.requests[2].url, "http://192.168.1.50:8580/status")
 end
 
 function T.test_switch_off_when_not_on_only_answers()

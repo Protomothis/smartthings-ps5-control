@@ -80,8 +80,10 @@ function handlers.switch_off(driver, device, _cmd, deps)
   local detail = type(body) == "table" and body.error or nil
   log.warn(string.format("%s: standby failed: %s%s", device.id, tostring(kind),
     detail and (" (" .. tostring(detail) .. ")") or ""))
-  -- Still on as far as we know: the toggle springs back.
+  -- Still on as far as we know: the toggle springs back, and a poll paints
+  -- the "last rest mode" row with the server's reason right away.
   poll.emit_switch(device, poll.current_switch(device), true, deps)
+  poll.once(driver, device, deps)
 end
 
 function handlers.refresh(driver, device, _cmd, deps)

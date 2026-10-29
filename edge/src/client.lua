@@ -26,6 +26,9 @@ client.STATUS_TIMEOUT = 8
 -- delay), ~30 s with the defaults. luasocket's TIMEOUT is per socket
 -- operation, and the server sends nothing until it is done.
 client.WAKE_TIMEOUT = 60
+-- A standby is a session plus the 30 s confirmation wait, and the server
+-- pauses 20 s before its one retry when the console refused the session.
+client.STANDBY_TIMEOUT = 100
 client.USER_AGENT = "smartthings-ps5-control-edge/" .. VERSION
 
 --- `http://<ip>:<port>` from an explicit address.
@@ -179,7 +182,7 @@ end
 --- `POST /standby`: rest mode over Remote Play. The server opens a session
 --- and then waits for discovery to confirm, up to ~30 s.
 function client.standby(device, deps)
-  return client.request(device, { method = "POST", path = "/standby", timeout = client.WAKE_TIMEOUT }, deps)
+  return client.request(device, { method = "POST", path = "/standby", timeout = client.STANDBY_TIMEOUT }, deps)
 end
 
 return client

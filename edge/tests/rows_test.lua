@@ -47,6 +47,26 @@ function T.test_last_wake()
   h.assert_equal(outcome, "error")
 end
 
+function T.test_last_standby()
+  local text, outcome = rows.last_standby(nil)
+  h.assert_equal(text, "없음")
+  h.assert_equal(outcome, "none")
+  text, outcome = rows.last_standby({ at = "2026-10-28T11:26:51+09:00", outcome = "success" })
+  h.assert_equal(text, "11:26 · 성공")
+  h.assert_equal(outcome, "success")
+  text, outcome = rows.last_standby({ at = "2026-10-28T23:52:10+09:00", outcome = "error",
+    error = "remoteplay: console answered HTTP 403 (80108b10: Remote Play is already in use on the console)" })
+  h.assert_equal(text, "23:52 · 실패 · Remote Play 사용 중")
+  h.assert_equal(outcome, "error")
+  text = rows.last_standby({ outcome = "error", error = "remoteplay: read response: read tcp 1.2.3.4:5->6.7.8.9:9295: read: connection reset by peer" })
+  h.assert_equal(text, "실패 · PS5 가 연결을 끊음")
+  text, outcome = rows.last_standby({ outcome = "timeout", error = "standby was sent but the console still reports on" })
+  h.assert_equal(text, "응답 없음 · 아직 켜짐")
+  h.assert_equal(outcome, "timeout")
+  h.assert_equal(rows.standby_reason("something quite unexpected happened here and it goes on"), "something quite unexpected happened here…", "40 chars then an ellipsis")
+  h.assert_equal(rows.standby_reason(""), "")
+end
+
 function T.test_bluetooth()
   local text, state = rows.bluetooth(nil)
   h.assert_equal(state, "unchecked")
@@ -85,6 +105,7 @@ function T.test_from_status_builds_every_row()
       bluetooth = { checked = true, supported = true, configured = true, manufacturer = "Broadcom" },
       remote_play = { registered = true, nickname = "PS5-054" },
       last_wake = { at = "2026-10-28T11:25:11+09:00", method = "bluetooth", outcome = "success" },
+      last_standby = { at = "2026-10-28T11:26:51+09:00", outcome = "success" },
       waking = false,
     },
   }
@@ -95,6 +116,8 @@ function T.test_from_status_builds_every_row()
   h.assert_equal(find(list, "info", "lastSeen"), "12:23")
   h.assert_equal(find(list, "wake", "lastWake"), "11:25 · 블루투스 · 성공")
   h.assert_equal(find(list, "wake", "lastOutcome"), "success")
+  h.assert_equal(find(list, "standby", "lastStandby"), "11:26 · 성공")
+  h.assert_equal(find(list, "standby", "lastOutcome"), "success")
   h.assert_equal(find(list, "bluetooth", "state"), "ready")
   h.assert_equal(find(list, "remote_play", "state"), "registered")
   h.assert_equal(find(list, "version", "versions"), "서버 00f33fe · 드라이버 0.1.0")
@@ -107,6 +130,7 @@ function T.test_from_status_builds_every_row()
   h.assert_equal(find(bare, "bluetooth", "state"), "unchecked")
   h.assert_equal(find(bare, "remote_play", "state"), "unregistered")
   h.assert_equal(find(bare, "wake", "lastOutcome"), "none")
+  h.assert_equal(find(bare, "standby", "lastOutcome"), "none")
 end
 
 function T.test_from_failure()

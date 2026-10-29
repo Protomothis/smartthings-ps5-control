@@ -1,0 +1,51 @@
+{
+  "id": "numbersystem53811.ps5standby",
+  "version": 1,
+  "dashboard": {
+    "states": [],
+    "actions": []
+  },
+  "detailView": [
+    {
+      "label": "{{i18n.attributes.lastStandby.label}}",
+      "displayType": "state",
+      "state": {
+        "label": "{{lastStandby.value}}"
+      }
+    }
+  ],
+  "automation": {
+    "conditions": [
+      {
+        "label": "{{i18n.attributes.lastOutcome.label}}",
+        "displayType": "list",
+        "list": {
+          "value": "lastOutcome.value",
+          "alternatives": [
+            {
+              "key": "success",
+              "value": "성공 (Success)",
+              "type": "active"
+            },
+            {
+              "key": "timeout",
+              "value": "응답 없음 (No answer)",
+              "type": "inactive"
+            },
+            {
+              "key": "error",
+              "value": "실패 (Failed)",
+              "type": "inactive"
+            },
+            {
+              "key": "none",
+              "value": "없음 (None)",
+              "type": "inactive"
+            }
+          ]
+        }
+      }
+    ],
+    "actions": []
+  }
+}

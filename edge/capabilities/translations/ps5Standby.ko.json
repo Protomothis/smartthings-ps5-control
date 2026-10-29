@@ -1,0 +1,13 @@
+{
+  "tag": "ko",
+  "label": "PS5 휴식 모드",
+  "attributes": {
+    "lastStandby": {
+      "label": "마지막 휴식 모드"
+    },
+    "lastOutcome": {
+      "label": "마지막 휴식 모드 결과"
+    }
+  },
+  "commands": {}
+}
