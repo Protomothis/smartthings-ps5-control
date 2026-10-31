@@ -51,7 +51,7 @@ node tools/build.js                          # 패키지 트리 build/edge/
 
 1. `CHANGELOG.md` 의 `[Unreleased]` 를 `[vX.Y.Z] - 날짜` 로 바꾼다.
 2. **서버 릴리스 먼저** — `vX.Y.Z` 태그. `release.yml` 이 ghcr 이미지(`vX.Y.Z`, `latest`)와 리눅스 바이너리를 GitHub Release 에 올린다.
-3. 홈서버에서 `docker compose pull && docker compose up -d`.
+3. 홈서버에 올린다. Docker 면 `docker compose pull && docker compose up -d`. Proxmox LXC(CT 105, 바이너리 직접 실행)면 `scripts/deploy-lxc.sh vX.Y.Z` — 컨테이너가 Release 의 바이너리를 받아 `SHA256SUMS` 로 확인하고, setcap 뒤 재시작해 `/healthz` 가 새 버전을 말하지 않으면 이전 바이너리로 되돌린다. 컨테이너 안에서는 `ps5ctl-update vX.Y.Z`. 로컬 빌드는 배포하지 않는다. 실기 시험이 필요하면 `vX.Y.Z-rc1` 태그(prerelease, `latest` 를 안 움직임)로 같은 길을 쓴다.
 4. 드라이버에 변경이 있으면 `edge/src/driver_version.lua` 를 올리고 `edge-vX.Y.Z` 태그. `edge.yml` 이 패키징하고, 시크릿이 있으면 채널에 배정한다.
 
 태그·Release·채널 배정은 사용자가 결정한다. 자동으로 만들지 않는다.
