@@ -25,14 +25,22 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 NAMESPACE=numbersystem53811
-NAMES=(ps5Power ps5Info ps5Wake ps5Bluetooth ps5RemotePlay ps5Version)
+ALL_NAMES=(ps5Power ps5Info ps5Wake ps5Standby ps5Bluetooth ps5RemotePlay ps5Version)
 TAGS=(ko en)
 
+# usage: capabilities.sh create|sync [--dry-run] [name ...]
+# Names limit the run to those capabilities (e.g. `create ps5Standby` for one
+# added later); without names every capability is taken.
 mode="${1:-}"
+shift || true
 dry=0
-[ "${2:-}" = "--dry-run" ] && dry=1
+NAMES=()
+for arg in "$@"; do
+  if [ "$arg" = "--dry-run" ]; then dry=1; else NAMES+=("$arg"); fi
+done
+[ "${#NAMES[@]}" -eq 0 ] && NAMES=("${ALL_NAMES[@]}")
 if [ "$mode" != "create" ] && [ "$mode" != "sync" ]; then
-  echo "usage: $0 create|sync [--dry-run]" >&2
+  echo "usage: $0 create|sync [--dry-run] [name ...]" >&2
   exit 2
 fi
 

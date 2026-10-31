@@ -135,7 +135,10 @@ func Wake(ctx context.Context, o Options) (res Result, err error) {
 	if devUp == nil {
 		devUp = hci.DevUp
 	}
-	res = Result{Adapter: o.Adapter}
+	// Nothing to restore until the address is actually rewritten: a failure
+	// before that (unsupported chipset, permissions) must not read as a
+	// dongle left with the wrong address.
+	res = Result{Adapter: o.Adapter, Restored: true}
 
 	if err := devUp(dev); err != nil {
 		log("%s: bring-up: %v (continuing)", o.Adapter, err)

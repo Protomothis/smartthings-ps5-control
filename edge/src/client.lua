@@ -22,10 +22,14 @@ local client = {}
 client.DEFAULT_PORT = 8580
 -- A status probe answers within the server's own 2 s timeout.
 client.STATUS_TIMEOUT = 8
--- A wake is synchronous on the server: up to attempts x (page wait + retry
--- delay), ~30 s with the defaults. luasocket's TIMEOUT is per socket
+-- A wake is synchronous on the server: the network path waits up to 30 s
+-- for the console, then Bluetooth tries attempts x (page wait + retry delay),
+-- ~70 s in all with the defaults. luasocket's TIMEOUT is per socket
 -- operation, and the server sends nothing until it is done.
-client.WAKE_TIMEOUT = 60
+client.WAKE_TIMEOUT = 120
+-- A standby is a session plus the 30 s confirmation wait, and the server
+-- pauses 20 s before its one retry when the console refused the session.
+client.STANDBY_TIMEOUT = 100
 client.USER_AGENT = "smartthings-ps5-control-edge/" .. VERSION
 
 --- `http://<ip>:<port>` from an explicit address.
@@ -179,7 +183,7 @@ end
 --- `POST /standby`: rest mode over Remote Play. The server opens a session
 --- and then waits for discovery to confirm, up to ~30 s.
 function client.standby(device, deps)
-  return client.request(device, { method = "POST", path = "/standby", timeout = client.WAKE_TIMEOUT }, deps)
+  return client.request(device, { method = "POST", path = "/standby", timeout = client.STANDBY_TIMEOUT }, deps)
 end
 
 return client

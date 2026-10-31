@@ -105,7 +105,14 @@ func Probe(ctx context.Context, host string, timeout time.Duration) (Status, err
 			if !from.IP.Equal(raddr.IP) {
 				continue // stray datagram from another host
 			}
-			return Parse(buf[:n])
+			st, perr := Parse(buf[:n])
+			if perr != nil {
+				// Not a discovery reply (the console sends other UDP traffic
+				// too; a 3-byte binary datagram was seen on 2026-10-28): keep
+				// waiting for the real one.
+				continue
+			}
+			return st, nil
 		}
 		if ctx.Err() != nil {
 			return Status{}, ctx.Err()

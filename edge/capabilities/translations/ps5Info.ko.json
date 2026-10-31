@@ -6,7 +6,26 @@
       "label": "상태"
     },
     "connection": {
-      "label": "서버 연결"
+      "label": "서버 연결",
+      "i18n": {
+        "value": {
+          "ok": {
+            "label": "연결됨"
+          },
+          "unauthorized": {
+            "label": "시크릿 불일치"
+          },
+          "unreachable": {
+            "label": "응답 없음"
+          },
+          "unconfigured": {
+            "label": "설정 없음"
+          },
+          "incompatible": {
+            "label": "버전 불일치"
+          }
+        }
+      }
     },
     "lastSeen": {
       "label": "마지막 확인"

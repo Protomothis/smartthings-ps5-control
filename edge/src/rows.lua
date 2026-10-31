@@ -33,33 +33,6 @@ function rows.ago(seen, now)
   return math.floor(d / 86400) .. "일 전"
 end
 
---- Epoch from an RFC 3339 timestamp like 2026-10-28T12:23:18.41+09:00, in
---- local time; nil when it cannot be read.
-function rows.parse_time(s)
-  if type(s) ~= "string" then
-    return nil
-  end
-  local y, mo, d, h, mi, sec = s:match("^(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+)")
-  if not y then
-    return nil
-  end
-  local frac = s:match("^%d+%-%d+%-%d+T%d+:%d+:%d+(%.%d+)") or ""
-  local rest = s:sub(#("2026-10-28T12:23:18") + #frac + 1)
-  local t = os.time({ year = tonumber(y), month = tonumber(mo), day = tonumber(d), hour = tonumber(h), min = tonumber(mi), sec = tonumber(sec) })
-  if not t then
-    return nil
-  end
-  -- os.time read the fields as local time; shift by the difference between
-  -- the stamp's offset and ours.
-  local local_offset = os.difftime(t, os.time(os.date("!*t", t)))
-  local offset = 0
-  local sign, oh, om = rest:match("^([%+%-])(%d%d):(%d%d)")
-  if sign then
-    offset = (tonumber(oh) * 3600 + tonumber(om) * 60) * (sign == "-" and -1 or 1)
-  end
-  return t + local_offset - offset
-end
-
 rows.POWER_LABEL = { on = "켜짐", standby = "휴식 모드", off = "꺼짐", waking = "깨우는 중", unknown = "알 수 없음" }
 
 --- The powerState value for a status body (plus the driver's own wake window).
@@ -94,6 +67,57 @@ function rows.last_wake(rec)
   local outcome = rec.outcome
   if outcome ~= "success" and outcome ~= "timeout" then
     outcome = "error"
+  end
+  return table.concat(parts, " · "), outcome
+end
+
+-- Why a standby failed, in words the device screen can show. The server's
+-- error text is English and carries the console's hex code.
+local STANDBY_REASONS = {
+  { "80108b10", "Remote Play 사용 중" },
+  { "connection reset", "PS5 가 연결을 끊음" },
+  { "passcode", "로그인 비밀번호 걸림" },
+  { "still reports on", "아직 켜짐" },
+  { "not registered", "Remote Play 미등록" },
+  { "deadline exceeded", "시간 초과" },
+}
+
+--- The reason text for a standby error string ("" when there is none).
+function rows.standby_reason(err)
+  if type(err) ~= "string" or err == "" then
+    return ""
+  end
+  local lower = err:lower()
+  for _, pair in ipairs(STANDBY_REASONS) do
+    if lower:find(pair[1], 1, true) then
+      return pair[2]
+    end
+  end
+  if #err > 40 then
+    return err:sub(1, 40) .. "…"
+  end
+  return err
+end
+
+--- The last-standby text and enum from the server record (may be nil):
+--- "23:52 · 실패 · Remote Play 사용 중" or "11:26 · 성공".
+function rows.last_standby(rec)
+  if type(rec) ~= "table" then
+    return "없음", "none"
+  end
+  local parts = {}
+  local at = rows.clock_of(rec.at)
+  if at ~= "" then
+    parts[#parts + 1] = at
+  end
+  parts[#parts + 1] = OUTCOME_LABEL[rec.outcome] or tostring(rec.outcome or "")
+  local outcome = rec.outcome
+  if outcome ~= "success" and outcome ~= "timeout" then
+    outcome = "error"
+  end
+  local reason = rows.standby_reason(rec.error)
+  if outcome ~= "success" and reason ~= "" then
+    parts[#parts + 1] = reason
   end
   return table.concat(parts, " · "), outcome
 end
@@ -155,6 +179,9 @@ function rows.from_status(body, _now, waking, driver_version)
   local wake_text, wake_outcome = rows.last_wake(srv.last_wake)
   add("wake", "lastWake", wake_text)
   add("wake", "lastOutcome", wake_outcome)
+  local sb_text, sb_outcome = rows.last_standby(srv.last_standby)
+  add("standby", "lastStandby", sb_text)
+  add("standby", "lastOutcome", sb_outcome)
   local bt_text, bt_state = rows.bluetooth(srv.bluetooth)
   add("bluetooth", "summary", bt_text)
   add("bluetooth", "state", bt_state)

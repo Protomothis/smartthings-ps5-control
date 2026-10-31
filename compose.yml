@@ -17,12 +17,18 @@ services:
     environment:
       PS5_AUTH_USER: ${PS5_AUTH_USER:?set in .env}
       PS5_AUTH_PASS: ${PS5_AUTH_PASS:?set in .env}
+      # Timestamps in /status and the log are written in this zone; the Edge
+      # driver shows them as they are (the hub itself runs in UTC).
+      TZ: ${TZ:-Asia/Seoul}
       # PS5_HTTP_ADDR: ":8580"
       # PS5_HTTPS_ADDR: ":8543"
       # PS5_TLS_HOSTS: "ps5.lan"   # extra SANs for the self-signed cert
     volumes:
       - ./data:/data
     restart: unless-stopped
+    # A Bluetooth wake in flight finishes (and restores the dongle address)
+    # before the process exits; the server waits up to 90 s for it.
+    stop_grace_period: 100s
     deploy:
       resources:
         limits:

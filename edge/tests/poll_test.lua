@@ -67,6 +67,21 @@ function T.test_start_uses_preference_interval_and_restarts()
   h.assert_nil(device.fields[poll.F_POLL_TIMER])
 end
 
+function T.test_switch_stays_on_while_waking()
+  -- The server answers the wake before the console finishes booting; a poll
+  -- in that window still says standby and must not flip the tile back.
+  local device, clock = h.device(), h.clock()
+  local http = h.http({ status("standby"), status("on") })
+  local deps = h.deps(http, clock)
+  device.fields[poll.F_WAKING_UNTIL] = clock.now() + model.WAKE_WINDOW_SECONDS
+  device.fields[poll.F_ROWS_SENT] = { ["switch.switch"] = { value = "on", at = clock.now() } } -- the optimistic "on"
+  poll.once(nil, device, deps)
+  h.assert_equal(#h.switch_values(device), 0, "standby during the window is not emitted as off")
+  h.assert_equal(device.fields[poll.F_POWER], "standby", "the real state is still stored")
+  poll.once(nil, device, deps)
+  h.assert_nil(device.fields[poll.F_WAKING_UNTIL], "on closes the window")
+end
+
 function T.test_follow_wake_until_on()
   local driver, device, clock = Driver("t"), h.device(), h.clock()
   local http = h.http({ status("standby"), status("on") })

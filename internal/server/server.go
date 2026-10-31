@@ -1,14 +1,19 @@
 // Package server exposes the status probe and wake over HTTP for the LAN and
 // serves the settings page.
 //
-//	GET  /healthz        liveness
-//	GET  /status         PS5 power state (unauthenticated, LAN only)
-//	POST /wake           wake the PS5 (unauthenticated, LAN only, one at a time)
-//	GET  /api/adapter    Bluetooth adapter chipset / spoof support
-//	GET  /                settings page              (basic auth)
-//	GET  /api/config     current settings            (basic auth)
-//	PUT  /api/config     replace settings            (basic auth)
-//	GET  /api/info       version and runtime hints   (basic auth)
+//	GET  /healthz              liveness
+//	GET  /status               PS5 power state + server block (unauthenticated, LAN only)
+//	POST /wake                 wake the PS5 (X-PS5-Secret when a secret is set; one at a time)
+//	POST /standby              rest mode over Remote Play (same guard)
+//	GET  /api/adapter          Bluetooth adapter chipset / spoof support
+//	GET  /ssdp.json            what the SSDP answer points at
+//	GET  /                     settings page                   (basic auth)
+//	GET  /api/config           current settings                 (basic auth)
+//	PUT  /api/config           replace settings                 (basic auth)
+//	GET  /api/info             version and runtime hints        (basic auth)
+//	GET  /api/logs[/download]  recent log entries / the file    (basic auth)
+//	GET  /api/remoteplay       registration state               (basic auth)
+//	POST /api/remoteplay/register, DELETE /api/remoteplay       (basic auth)
 package server
 
 import (
@@ -66,18 +71,30 @@ type Server struct {
 	hub     *logx.Hub
 	version string
 
+	// wakeMu serialises everything that touches the adapter or opens a
+	// Remote Play session: wake, standby and the adapter check.
 	wakeMu  sync.Mutex
-	lastMu  sync.Mutex
-	lastRes *wakeRecord
 	timing  timing
 	adapter adapterCache
 	actions actions
 }
 
-type wakeRecord struct {
-	At     time.Time   `json:"at"`
-	Result wake.Result `json:"result"`
-	Error  string      `json:"error,omitempty"`
+// WaitIdle blocks until no wake or standby is in progress, or ctx ends
+// (shutdown: an aborted Bluetooth sequence would leave the dongle with the
+// spoofed address). Reports whether it became idle.
+func (s *Server) WaitIdle(ctx context.Context) bool {
+	done := make(chan struct{})
+	go func() {
+		s.wakeMu.Lock()
+		s.wakeMu.Unlock() //nolint:staticcheck // taken only to wait for the holder
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 // New builds a Server. logger may be nil; hub (optional) backs GET /api/logs.
@@ -98,7 +115,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /wake", s.secretRequired(s.handleWake))
 	mux.HandleFunc("POST /standby", s.secretRequired(s.handleStandby))
 	mux.HandleFunc("GET /api/adapter", s.handleAdapter)
-	mux.HandleFunc("GET /api/wake/last", s.handleLastWake)
 	mux.Handle("GET /api/remoteplay", s.auth.Wrap(http.HandlerFunc(s.handleGetRemotePlay)))
 	mux.Handle("POST /api/remoteplay/register", s.auth.Wrap(http.HandlerFunc(s.handleRegister)))
 	mux.Handle("DELETE /api/remoteplay", s.auth.Wrap(http.HandlerFunc(s.handleUnregister)))
@@ -192,19 +208,14 @@ func bluetoothErrorCode(err error) int {
 	}
 }
 
-func (s *Server) handleLastWake(w http.ResponseWriter, r *http.Request) {
-	s.lastMu.Lock()
-	rec := s.lastRes
-	s.lastMu.Unlock()
-	if rec == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"result": nil})
-		return
-	}
-	writeJSON(w, http.StatusOK, rec)
-}
-
 func (s *Server) handleAdapter(w http.ResponseWriter, r *http.Request) {
 	c := s.cfg.Get()
+	// Inspect must not run while a wake has the address spoofed.
+	if !s.wakeMu.TryLock() {
+		writeError(w, http.StatusLocked, errors.New("a wake or standby is in progress"))
+		return
+	}
+	defer s.wakeMu.Unlock()
 	if c.HCI == "" {
 		writeError(w, http.StatusConflict, errors.New("hci not configured"))
 		return

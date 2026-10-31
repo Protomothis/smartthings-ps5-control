@@ -164,7 +164,7 @@ SSDP 검색, push 구독, 프로필 생성기, i18n — 이 드라이버는 표�
   캐시에 백그라운드 갱신이라 폴링 응답이 느려지지 않는다.
 - emit 규칙(`poll.emit_row`): 같은 값은 안 보내고(`rows_sent`, 실행마다 비움 → 실행마다 첫 전송은 강제),
   10분에 한 번 재전송, 명령 응답은 강제. 줄은 switch 포함 12개라 30초 폴링이 고른 상태에선 아무것도 안 낸다.
-- 프로필 `ps5.v2`(카테고리 `Switch` — 앱의 아이콘 바꾸기가 되는 카테고리). `profiles.ensure` 가 `init` 에서
+- 프로필 `ps5.v2`(카테고리 `Switch` — 앱의 아이콘 바꾸기가 되는 카테고리), v0.1.1 부터 `ps5.v3`(마지막 휴식 모드 줄 추가). `profiles.ensure` 가 `init` 에서
   v1 장치를 `try_update_metadata` 로 옮기고 `poll.repaint` 로 전 줄을 다시 보낸다. 화면을 또 바꾸면 v3 파일.
 - capability 생성은 `edge/tools/capabilities.sh create`(2026-10-28 계정에 생성 완료). 정의·프레젠테이션을 바꾸려면
   새 id 가 필요하다(허브 캐시·첫 프레젠테이션 고정).

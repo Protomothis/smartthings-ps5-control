@@ -34,10 +34,16 @@ function T.test_ensure_leaves_current_alone()
   h.assert_nil(profiles.ensure(cur))
   h.assert_equal(#cur.updates, 0)
   h.assert_equal(cur.fields[profiles.F_NAME], profiles.CURRENT, "remembered")
-  -- the stored name wins over what the hub reports
+  -- what the hub reports wins over the stored name: a migration is only
+  -- requested, so a device the hub still shows on ps5.v1 is asked again
+  -- (once per run) even though the request was remembered
   local stored = device_on("ps5.v1")
   stored.fields[profiles.F_NAME] = profiles.CURRENT
-  h.assert_nil(profiles.ensure(stored))
+  h.assert_equal(profiles.ensure(stored), profiles.CURRENT)
+  -- without the hub's view the stored name is all there is
+  local blind = device_on(nil)
+  blind.fields[profiles.F_NAME] = profiles.CURRENT
+  h.assert_nil(profiles.ensure(blind))
 end
 
 function T.test_ensure_survives_a_refusing_hub()

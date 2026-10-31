@@ -34,9 +34,11 @@ function handlers.switch_on(driver, device, _cmd, deps)
   poll.emit_row(device, "power", "powerState", "waking", true, deps)
 
   local ok, body, kind = client.wake(device, deps)
+  -- The HCI details sit under `bluetooth` and only when that path ran.
+  local bt = type(body) == "table" and type(body.bluetooth) == "table" and body.bluetooth or {}
   if ok then
-    log.info(string.format("%s: wake %s (%s, %s attempt(s))", device.id,
-      tostring(body.outcome), tostring(body.status_text), tostring(body.attempts)))
+    log.info(string.format("%s: wake %s via %s (%s, %s attempt(s))", device.id,
+      tostring(body.outcome), tostring(body.method), tostring(bt.status_text), tostring(bt.attempts)))
     poll.follow_wake(driver, device, deps)
     return
   end
@@ -46,7 +48,7 @@ function handlers.switch_on(driver, device, _cmd, deps)
     poll.follow_wake(driver, device, deps)
     return
   end
-  local detail = type(body) == "table" and (body.error or body.status_text) or nil
+  local detail = type(body) == "table" and (body.error or bt.status_text) or nil
   log.warn(string.format("%s: wake failed: %s%s", device.id, tostring(kind),
     detail and (" (" .. tostring(detail) .. ")") or ""))
   device:set_field(poll.F_WAKING_UNTIL, nil, { persist = true })
@@ -80,8 +82,10 @@ function handlers.switch_off(driver, device, _cmd, deps)
   local detail = type(body) == "table" and body.error or nil
   log.warn(string.format("%s: standby failed: %s%s", device.id, tostring(kind),
     detail and (" (" .. tostring(detail) .. ")") or ""))
-  -- Still on as far as we know: the toggle springs back.
+  -- Still on as far as we know: the toggle springs back, and a poll paints
+  -- the "last rest mode" row with the server's reason right away.
   poll.emit_switch(device, poll.current_switch(device), true, deps)
+  poll.once(driver, device, deps)
 end
 
 function handlers.refresh(driver, device, _cmd, deps)
@@ -102,15 +106,19 @@ function handlers.init(driver, device, _event, deps)
   poll.once(driver, device, deps)
 end
 
-function handlers.added(_driver, device, _event, deps)
+function handlers.added(driver, device, _event, deps)
   log.info("added " .. device.id)
   profiles.remember(device, profiles.CURRENT)
-  -- A device the search created arrives with the server's address.
-  if discovery.adopt(device) then
-    log.info(string.format("%s: using discovered address %s", device.id, tostring(device:get_field(discovery.F_IP))))
-  end
   -- Paint the tile now; the first poll fills in the real value.
   poll.emit_switch(device, "off", true, deps)
+  -- A device the search created arrives with the server's address. The hub
+  -- sends `init` before `added`, so that first poll ran without the address
+  -- and left the device offline: poll again now that it is known.
+  if discovery.adopt(device) then
+    log.info(string.format("%s: using discovered address %s", device.id, tostring(device:get_field(discovery.F_IP))))
+    poll.once(driver, device, deps)
+    return
+  end
   if not client.device_base_url(device) then
     log.warn(device.id .. ": set the server address in the device settings")
   end

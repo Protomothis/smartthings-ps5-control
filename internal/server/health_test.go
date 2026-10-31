@@ -1,13 +1,45 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/protomothis/smartthings-ps5-control/internal/config"
 	"github.com/protomothis/smartthings-ps5-control/internal/discovery"
+	"github.com/protomothis/smartthings-ps5-control/internal/wake"
 )
+
+// The adapter check repeats every ten minutes; an unchanged result must not
+// add an info line each time (on the first install it was one line in 50 of
+// a log otherwise filled with routine traffic).
+func TestAdapterCheckLogsChangesOnly(t *testing.T) {
+	store, err := config.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	deps := (&fakeDeps{}).deps()
+	supported := true
+	deps.Inspect = func(adapter string) (wake.AdapterInfo, error) {
+		return wake.AdapterInfo{Adapter: adapter, Manufacturer: "Broadcom", Supported: supported, Rating: 4}, nil
+	}
+	var buf bytes.Buffer
+	s := New(store, deps, Auth{}, "test", slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})), nil)
+	ctx := context.Background()
+	s.CheckAdapterNow(ctx)
+	s.CheckAdapterNow(ctx)
+	supported = false
+	s.CheckAdapterNow(ctx)
+
+	out := buf.String()
+	if info, debug := strings.Count(out, `level=INFO msg="adapter check"`), strings.Count(out, `level=DEBUG msg="adapter check unchanged"`); info != 2 || debug != 1 {
+		t.Fatalf("info=%d debug=%d\n%s", info, debug, out)
+	}
+}
 
 // srvOf returns the Server behind a fixture's test server.
 func srvOf(t *testing.T, ts *httptest.Server) *Server {

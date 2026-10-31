@@ -31,7 +31,7 @@ Go 정적 바이너리 하나가 `scratch` 이미지로 홈서버(리눅스)에�
 - **블루투스 깨우기** — 동글의 BD_ADDR 를 PS5 에 페어링된 듀얼센스 주소로 바꾼 뒤 PS5 를 페이지합니다. PS5 는 페이지의 출발 주소만 보고 켜지므로 링크키가 필요 없습니다. 끝나면 동글 주소를 되돌립니다.
 - **Remote Play 로 휴식 모드 · 네트워크 깨우기** — 설정 페이지에서 PS5 에 Remote Play 클라이언트로 등록(PSN 계정 ID + PS5 의 PIN)하면 켜진 PS5 를 휴식 모드로 보내고, 휴식 모드의 PS5 는 블루투스 없이 네트워크로 깨웁니다. 블루투스는 완전 종료 상태에서만 필요합니다. playactor(ISC) 의 PS5 구현을 Go 로 옮겼습니다.
 - **설정 페이지** — PS5 IP · API 시크릿 · 블루투스 주소 · 어댑터 · Remote Play 등록을 카드로 다루고, 상태 조회 · 켜기 · 휴식 모드 · 어댑터 확인 버튼으로 바로 시험합니다. 크롬에서 USB 로 꽂은 듀얼센스를 읽어(WebHID) 두 주소를 채우고, 로그 패널이 서버에서 일어난 일을 보여 줍니다.
-- **SmartThings 장치** — 스위치(켜기 = 깨우기, 끄기 = 휴식 모드) 아래에 전원 상태(켜짐 · 휴식 모드 · 꺼짐 · 깨우는 중), 서버 연결, 마지막 깨우기(시각 · 경로 · 결과), 블루투스 동글, Remote Play 등록, 버전 줄이 있고 모두 루틴 조건으로 쓸 수 있습니다. 주변 기기 검색(SSDP)으로 서버를 찾아 장치를 만듭니다.
+- **SmartThings 장치** — 스위치(켜기 = 깨우기, 끄기 = 휴식 모드) 아래에 전원 상태(켜짐 · 휴식 모드 · 꺼짐 · 깨우는 중), 서버 연결, 마지막 깨우기(시각 · 경로 · 결과), 마지막 휴식 모드(결과와 실패 사유), 블루투스 동글, Remote Play 등록, 버전 줄이 있고 모두 루틴 조건으로 쓸 수 있습니다. 주변 기기 검색(SSDP)으로 서버를 찾아 장치를 만듭니다.
 - **작게** — 외부 의존성은 `golang.org/x/sys` 뿐, 이미지는 수 MB, 메모리 제한 32 MB 로 돕니다.
 
 ### 어떻게 동작하나
@@ -75,7 +75,7 @@ BD_ADDR 변경은 표준 HCI 명령이 없어 칩셋별 벤더 명령을 씁니�
 | `https://<서버>:8543/` | 설정 페이지 (`/api/config`, `/api/info`, `/api/remoteplay*`, `/api/logs` 포함) | basic auth |
 | `/api/adapter`, `/healthz`, `/ssdp.json` | 동글 정보, 헬스체크, SSDP 응답이 가리키는 설명(설치 ID · 이름 · 포트) | 없음 |
 
-환경변수: `PS5_AUTH_USER` · `PS5_AUTH_PASS`(없으면 설정 페이지가 503 으로 닫힘), `PS5_HTTP_ADDR`(`:8580`), `PS5_HTTPS_ADDR`(`:8543`), `PS5_TLS_HOSTS`, `PS5_DATA`(`/data`), `PS5_LOG_LEVEL`(`info`; `debug` 면 HTTP 요청까지), `PS5_SSDP`(`on`; `off` 면 허브의 검색에 답하지 않음).
+환경변수: `PS5_AUTH_USER` · `PS5_AUTH_PASS`(없으면 설정 페이지가 503 으로 닫힘), `PS5_HTTP_ADDR`(`:8580`), `PS5_HTTPS_ADDR`(`:8543`), `PS5_TLS_HOSTS`, `PS5_DATA`(`/data`), `PS5_LOG_LEVEL`(`info`; `debug` 면 HTTP 요청까지), `PS5_SSDP`(`on`; `off` 면 허브의 검색에 답하지 않음), `TZ`(`Asia/Seoul`; 상태·로그의 시각이 이 시간대로 찍히고 드라이버는 그대로 보여 줌).
 CLI 로도 같은 일을 합니다: `ps5ctl status --ip <PS5>` · `sudo ps5ctl adapter` · `sudo ps5ctl wake --controller … --ps5 …` · `ps5ctl rp account|register|wake|standby`.
 
 ### Remote Play 와 로그

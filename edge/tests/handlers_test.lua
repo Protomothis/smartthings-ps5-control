@@ -10,8 +10,10 @@ local function status(state)
   return { code = 200, body = string.format('{"state":"%s"}', state) }
 end
 
-local WOKE = { code = 200, body = '{"outcome":"success","status_text":"Remote User Terminated Connection","attempts":1,"restored":true}' }
-local NO_ANSWER = { code = 504, body = '{"outcome":"timeout","status_text":"Page Timeout","attempts":3,"restored":true}' }
+-- The server's wakeResponse: method/outcome at the top, HCI details under
+-- `bluetooth` when that path ran.
+local WOKE = { code = 200, body = '{"method":"bluetooth","outcome":"success","bluetooth":{"status_text":"Remote User Terminated Connection","attempts":1,"restored":true}}' }
+local NO_ANSWER = { code = 504, body = '{"method":"bluetooth","outcome":"timeout","error":"wake: no answer","bluetooth":{"status_text":"Page Timeout","attempts":3,"restored":true}}' }
 
 function T.test_switch_on_wakes_and_follows()
   local driver, device, clock = Driver("t"), h.device(), h.clock()
@@ -80,12 +82,14 @@ end
 function T.test_switch_off_failure_springs_back()
   local device, clock = h.device(), h.clock()
   device.fields[poll.F_POWER] = "on"
-  local http = h.http({ { code = 409, body = '{"error":"not configured: remote_play"}' } })
+  local http = h.http({ { code = 409, body = '{"error":"not configured: remote_play"}' }, status("on") })
   handlers.switch_off(nil, device, {}, h.deps(http, clock))
   local values = h.switch_values(device)
   h.assert_equal(values[1], "off")
   h.assert_equal(values[2], "on", "springs back")
   h.assert_true(h.last_switch_forced(device))
+  h.assert_equal(#http.requests, 2, "a poll follows the failure so the rest-mode row shows the reason")
+  h.assert_equal(http.requests[2].url, "http://192.168.1.50:8580/status")
 end
 
 function T.test_switch_off_when_not_on_only_answers()
@@ -139,10 +143,13 @@ function T.test_added_adopts_discovered_address()
   local driver, device, clock = Driver("t"), h.device({ serverAddress = "" }), h.clock()
   device.device_network_id = "ps5-control-srv9"
   discovery.remember("ps5-control-srv9", { ip = "192.168.1.50", port = 8580, name = "PS5-9" })
-  handlers.added(driver, device, {}, h.deps(nil, clock))
+  local http = h.http({ status("standby") })
+  handlers.added(driver, device, {}, h.deps(http, clock))
   h.assert_equal(device.fields[discovery.F_IP], "192.168.1.50")
   h.assert_equal(device.fields[discovery.F_NAME], "PS5-9")
   h.assert_equal(h.switch_values(device)[1], "off")
+  h.assert_equal(#http.requests, 1, "polls as soon as the address is adopted (init ran before added)")
+  h.assert_equal(device.fields[poll.F_POWER], "standby")
 end
 
 function T.test_wake_window_length()

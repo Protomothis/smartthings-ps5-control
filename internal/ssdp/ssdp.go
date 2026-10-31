@@ -152,6 +152,10 @@ func sanitizeHeader(s string) string {
 type Responder struct {
 	Info func() Info
 	Log  func(format string, args ...any)
+	// Debug receives the routine lines (repeat answers to a known
+	// searcher); nil discards them. Some LAN clients search ssdp:all every
+	// few seconds, which at Log level filled the log file within days.
+	Debug func(format string, args ...any)
 
 	mu      sync.Mutex
 	cancel  context.CancelFunc
@@ -166,25 +170,44 @@ func (r *Responder) logf(format string, args ...any) {
 	}
 }
 
-// allow reports whether ip may be answered now (once per perSourceInterval).
-func (r *Responder) allow(ip string, now time.Time) bool {
+func (r *Responder) debugf(format string, args ...any) {
+	if r.Debug != nil {
+		r.Debug(format, args...)
+	}
+}
+
+// allow reports whether ip may be answered now (once per perSourceInterval)
+// and whether ip has never been answered before.
+func (r *Responder) allow(ip string, now time.Time) (ok, first bool) {
 	r.limitMu.Lock()
 	defer r.limitMu.Unlock()
 	if r.last == nil {
 		r.last = map[string]time.Time{}
 	}
-	if t, ok := r.last[ip]; ok && now.Sub(t) < perSourceInterval {
-		return false
+	t, seen := r.last[ip]
+	if seen && now.Sub(t) < perSourceInterval {
+		return false, false
 	}
 	r.last[ip] = now
-	return true
+	return true, !seen
 }
 
 type socket struct {
 	name    string
 	localIP net.IP
-	recv    *net.UDPConn
-	send    *net.UDPConn
+	// subnet is the interface's IPv4 network. Linux delivers a multicast
+	// datagram to every socket joined to the group (IP_MULTICAST_ALL), so
+	// each socket answers only searches from its own subnet: otherwise the
+	// first reader wins and LOCATION may carry a bridge address (docker0,
+	// br-*) the hub cannot reach.
+	subnet *net.IPNet
+	recv   *net.UDPConn
+	send   *net.UDPConn
+}
+
+// wants reports whether a search from src belongs to this socket's network.
+func (s *socket) wants(src net.IP) bool {
+	return s.subnet == nil || s.subnet.Contains(src)
 }
 
 func (s *socket) close() {
@@ -209,7 +232,7 @@ func (r *Responder) openSockets() ([]*socket, error) {
 		if ifi.Flags&net.FlagUp == 0 || ifi.Flags&net.FlagMulticast == 0 || ifi.Flags&net.FlagLoopback != 0 {
 			continue
 		}
-		ip := firstIPv4(&ifi)
+		ip, subnet := firstIPv4(&ifi)
 		if ip == nil {
 			continue
 		}
@@ -226,7 +249,7 @@ func (r *Responder) openSockets() ([]*socket, error) {
 			r.logf("%s has no unicast sender (%v); replying from the group socket", ifi.Name, err)
 			send = recv
 		}
-		out = append(out, &socket{name: ifi.Name, localIP: ip, recv: recv, send: send})
+		out = append(out, &socket{name: ifi.Name, localIP: ip, subnet: subnet, recv: recv, send: send})
 	}
 	if len(out) == 0 {
 		return nil, errors.New("ssdp: no multicast-capable IPv4 interface")
@@ -234,24 +257,30 @@ func (r *Responder) openSockets() ([]*socket, error) {
 	return out, nil
 }
 
-func firstIPv4(ifi *net.Interface) net.IP {
+// firstIPv4 returns the interface's first usable IPv4 address and, when the
+// address came with a mask, its network.
+func firstIPv4(ifi *net.Interface) (net.IP, *net.IPNet) {
 	addrs, err := ifi.Addrs()
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 	for _, a := range addrs {
 		var ip net.IP
+		var subnet *net.IPNet
 		switch v := a.(type) {
 		case *net.IPNet:
 			ip = v.IP
+			if ip4 := v.IP.To4(); ip4 != nil {
+				subnet = &net.IPNet{IP: ip4.Mask(v.Mask), Mask: v.Mask}
+			}
 		case *net.IPAddr:
 			ip = v.IP
 		}
 		if ip4 := ip.To4(); ip4 != nil && !ip4.IsUnspecified() && !ip4.IsLoopback() {
-			return ip4
+			return ip4, subnet
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 // Start opens the sockets and answers searches until Stop. Starting twice
@@ -275,7 +304,7 @@ func (r *Responder) Start() error {
 		wg.Add(1)
 		go func(s *socket) {
 			defer wg.Done()
-			r.serve(ctx, s.recv, s.send, s.localIP)
+			r.serve(ctx, s)
 		}(s)
 	}
 	go func() {
@@ -309,7 +338,8 @@ func (r *Responder) Stop() {
 
 // serve reads searches from recv until it is closed and answers each on
 // send, after the random delay the searcher's MX allows.
-func (r *Responder) serve(ctx context.Context, recv, send *net.UDPConn, localIP net.IP) {
+func (r *Responder) serve(ctx context.Context, sock *socket) {
+	recv, send, localIP := sock.recv, sock.send, sock.localIP
 	buf := make([]byte, maxPacket)
 	for {
 		n, src, err := recv.ReadFromUDP(buf)
@@ -320,10 +350,11 @@ func (r *Responder) serve(ctx context.Context, recv, send *net.UDPConn, localIP 
 			return
 		}
 		req, ok := ParseMSearch(buf[:n])
-		if !ok || src == nil {
+		if !ok || src == nil || !sock.wants(src.IP) {
 			continue
 		}
-		if !r.allow(src.IP.String(), time.Now()) {
+		ok, first := r.allow(src.IP.String(), time.Now())
+		if !ok {
 			continue
 		}
 		delay := time.Duration(0)
@@ -343,7 +374,11 @@ func (r *Responder) serve(ctx context.Context, recv, send *net.UDPConn, localIP 
 				}
 				return
 			}
-			r.logf("answered search from %s", src)
+			if first {
+				r.logf("answered search from %s (first from this address)", src)
+			} else {
+				r.debugf("answered search from %s", src)
+			}
 		}(src, delay)
 	}
 }

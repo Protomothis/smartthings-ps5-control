@@ -29,8 +29,10 @@ type fakeRP struct {
 	registers  int
 	wakeErr    error
 	standbyErr error
-	regErr     error
-	lastPIN    string
+	// standbyOnce fails only the first Standby call (the retry path).
+	standbyOnce error
+	regErr      error
+	lastPIN     string
 }
 
 func (f *fakeRP) Register(ctx context.Context, accountID, pin string) (config.RemotePlay, error) {
@@ -55,6 +57,9 @@ func (f *fakeRP) Standby(ctx context.Context, rp config.RemotePlay) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.standbys++
+	if f.standbys == 1 && f.standbyOnce != nil {
+		return f.standbyOnce
+	}
 	return f.standbyErr
 }
 
@@ -102,7 +107,7 @@ func rpFixture(t *testing.T, registered bool, states ...discovery.State) (*httpt
 		return "", errors.New("bad account id")
 	}
 	s := New(store, deps, Auth{User: "admin", Pass: "secret"}, "test", slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
-	s.timing = timing{pollInterval: 10 * time.Millisecond, networkWakeTimeout: 200 * time.Millisecond, standbyTimeout: 200 * time.Millisecond}
+	s.timing = timing{pollInterval: 10 * time.Millisecond, networkWakeTimeout: 200 * time.Millisecond, standbyTimeout: 200 * time.Millisecond, standbyRetryDelay: 20 * time.Millisecond}
 	ts := httptest.NewServer(s.Handler())
 	serversByURL[ts.URL] = s
 	t.Cleanup(ts.Close)
@@ -203,6 +208,29 @@ func TestStandby(t *testing.T) {
 	code, m := call(t, ts, "POST", "/standby", "", nil, false)
 	if code != 200 || m["state"] != "standby" || rp.standbys != 1 {
 		t.Fatalf("%d %v standbys=%d", code, m, rp.standbys)
+	}
+}
+
+func TestStandbyRetriesWhenRefused(t *testing.T) {
+	// The console refused the first session ("Remote Play in use", or a reset
+	// connection): one more try after the pause, and that one lands.
+	for _, first := range []string{
+		"remoteplay: console answered HTTP 403 (80108b10: Remote Play is already in use on the console)",
+		"remoteplay: read response: read tcp 10.0.0.2:56812->10.0.0.9:9295: read: connection reset by peer",
+	} {
+		ts, _, rp, _ := rpFixture(t, true, discovery.StateOn, discovery.StateStandby)
+		rp.standbyOnce = errors.New(first)
+		code, m := call(t, ts, "POST", "/standby", "", nil, false)
+		if code != 200 || m["state"] != "standby" || rp.standbys != 2 {
+			t.Fatalf("%q: %d %v standbys=%d", first, code, m, rp.standbys)
+		}
+	}
+	// Anything else is final: no second session attempt.
+	ts, _, rp, _ := rpFixture(t, true, discovery.StateOn, discovery.StateOn)
+	rp.standbyOnce = errors.New("remoteplay: console answered HTTP 403 (80108b09: invalid PIN)")
+	code, _ := call(t, ts, "POST", "/standby", "", nil, false)
+	if code != 502 || rp.standbys != 1 {
+		t.Fatalf("%d standbys=%d", code, rp.standbys)
 	}
 }
 

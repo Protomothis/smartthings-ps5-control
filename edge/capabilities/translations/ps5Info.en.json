@@ -6,7 +6,26 @@
       "label": "Status"
     },
     "connection": {
-      "label": "Server connection"
+      "label": "Server connection",
+      "i18n": {
+        "value": {
+          "ok": {
+            "label": "Connected"
+          },
+          "unauthorized": {
+            "label": "Wrong secret"
+          },
+          "unreachable": {
+            "label": "Unreachable"
+          },
+          "unconfigured": {
+            "label": "Not configured"
+          },
+          "incompatible": {
+            "label": "Incompatible"
+          }
+        }
+      }
     },
     "lastSeen": {
       "label": "Last seen"

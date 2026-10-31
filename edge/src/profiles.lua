@@ -9,10 +9,10 @@
 
 local profiles = {}
 
-profiles.VERSION = 2
+profiles.VERSION = 3
 profiles.CURRENT = "ps5.v" .. profiles.VERSION
 -- Every name this driver ever shipped, oldest first.
-profiles.KNOWN = { "ps5.v1", profiles.CURRENT }
+profiles.KNOWN = { "ps5.v1", "ps5.v2", profiles.CURRENT }
 
 -- Remembered at creation: `device.profile.name` is not always exposed.
 profiles.F_NAME = "profile_name"
@@ -27,15 +27,18 @@ function profiles.name_of(device)
   if type(device) ~= "table" then
     return nil
   end
+  -- The hub's own view first: a migration is only requested
+  -- (try_update_metadata is asynchronous), so the stored name says what was
+  -- asked for, not what the device is on.
+  local p = device.profile
+  if type(p) == "table" and type(p.name) == "string" and p.name ~= "" then
+    return p.name
+  end
   if type(device.get_field) == "function" then
     local stored = device:get_field(profiles.F_NAME)
     if type(stored) == "string" and stored ~= "" then
       return stored
     end
-  end
-  local p = device.profile
-  if type(p) == "table" and type(p.name) == "string" and p.name ~= "" then
-    return p.name
   end
   return nil
 end

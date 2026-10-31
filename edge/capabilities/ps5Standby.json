@@ -1,0 +1,38 @@
+{
+  "id": "numbersystem53811.ps5standby",
+  "version": 1,
+  "status": "proposed",
+  "name": "ps5Standby",
+  "ephemeral": false,
+  "attributes": {
+    "lastStandby": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "maxLength": 255
+          }
+        },
+        "additionalProperties": false,
+        "required": ["value"]
+      },
+      "enumCommands": []
+    },
+    "lastOutcome": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": ["success","timeout","error","none"]
+          }
+        },
+        "additionalProperties": false,
+        "required": ["value"]
+      },
+      "enumCommands": []
+    }
+  },
+  "commands": {}
+}

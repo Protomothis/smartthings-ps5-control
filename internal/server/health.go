@@ -80,7 +80,17 @@ func (s *Server) bluetooth(c config.Config) bluetoothInfo {
 }
 
 func (s *Server) refreshAdapter(adapter string) {
+	// Inspect talks to the adapter (bring-up, version, address); during a
+	// wake the address is spoofed and a reset is in flight, so wait for the
+	// next poll instead of racing it.
+	if !s.wakeMu.TryLock() {
+		s.adapter.mu.Lock()
+		s.adapter.refreshing = false
+		s.adapter.mu.Unlock()
+		return
+	}
 	ai, err := s.deps.Inspect(adapter)
+	s.wakeMu.Unlock()
 	now := time.Now()
 	info := bluetoothInfo{Checked: true, Adapter: adapter, CheckedAt: &now}
 	if err != nil {
@@ -91,14 +101,22 @@ func (s *Server) refreshAdapter(adapter string) {
 		info.Rating = ai.Rating
 	}
 	s.adapter.mu.Lock()
+	prev := s.adapter.info
 	s.adapter.info = info
 	s.adapter.adapter = adapter
 	s.adapter.refreshing = false
 	s.adapter.mu.Unlock()
-	if err != nil {
-		s.logc("wake").Warn("adapter check failed", "adapter", adapter, "err", err.Error())
-	} else {
-		s.logc("wake").Info("adapter check", "adapter", adapter, "manufacturer", ai.Manufacturer, "supported", ai.Supported, "rating", ai.Rating)
+	// The check repeats every adapterTTL; only a change is news.
+	changed := !prev.Checked || prev.Adapter != info.Adapter || prev.Error != info.Error ||
+		prev.Supported != info.Supported || prev.Manufacturer != info.Manufacturer || prev.Rating != info.Rating
+	log := s.logc("wake")
+	switch {
+	case !changed:
+		log.Debug("adapter check unchanged", "adapter", adapter, "err", info.Error)
+	case err != nil:
+		log.Warn("adapter check failed", "adapter", adapter, "err", err.Error())
+	default:
+		log.Info("adapter check", "adapter", adapter, "manufacturer", ai.Manufacturer, "supported", ai.Supported, "rating", ai.Rating)
 	}
 }
 

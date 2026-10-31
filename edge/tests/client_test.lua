@@ -55,7 +55,7 @@ function T.test_get_status_decodes_body()
 end
 
 function T.test_wake_posts_with_long_timeout()
-  local http = h.http({ { code = 200, body = '{"outcome":"success","status_text":"Success","attempts":1}' } })
+  local http = h.http({ { code = 200, body = '{"method":"bluetooth","outcome":"success","bluetooth":{"status_text":"Success","attempts":1,"restored":true}}' } })
   local seen_timeout
   local deps = h.deps(http)
   -- A module-shaped http records the TIMEOUT the client sets on it.
@@ -76,11 +76,11 @@ function T.test_wake_posts_with_long_timeout()
 end
 
 function T.test_error_body_comes_back_with_kind()
-  local http = h.http({ { code = 504, body = '{"outcome":"timeout","status_text":"Page Timeout","attempts":3}' } })
+  local http = h.http({ { code = 504, body = '{"method":"bluetooth","outcome":"timeout","bluetooth":{"status_text":"Page Timeout","attempts":3,"restored":true}}' } })
   local ok, body, kind = client.wake(h.device(), h.deps(http))
   h.assert_false(ok)
   h.assert_equal(kind, "timeout")
-  h.assert_equal(body.status_text, "Page Timeout")
+  h.assert_equal(body.bluetooth.status_text, "Page Timeout")
 end
 
 function T.test_transport_failure_is_unreachable()

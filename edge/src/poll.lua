@@ -187,8 +187,12 @@ function poll.once(driver, device, deps)
     -- The wake landed: the optimistic "on" is now the truth.
     set_field(device, poll.F_WAKING_UNTIL, nil, true)
   end
-  poll.emit_switch(device, model.switch_value(state), false, deps)
-  poll.emit_rows(device, rows.from_status(body, now, poll.waking(device, deps), version), false, deps)
+  -- While the wake window is open the switch stays at the optimistic "on":
+  -- the server answers as soon as the console took the page, and the
+  -- console boots for 10-20 s more during which /status still says off.
+  local waking = poll.waking(device, deps)
+  poll.emit_switch(device, waking and "on" or model.switch_value(state), false, deps)
+  poll.emit_rows(device, rows.from_status(body, now, waking, version), false, deps)
   return state
 end
 
@@ -228,6 +232,11 @@ function poll.follow_wake(driver, device, deps)
       return
     end
     if poll.waking(device, deps) then
+      -- A second switch-on during the poll above started its own loop; one
+      -- loop is enough.
+      if field(device, poll.F_WAKE_TIMER) ~= nil then
+        return
+      end
       local timer = driver:call_with_delay(model.WAKE_POLL_SECONDS, step, "ps5-wake-follow")
       set_field(device, poll.F_WAKE_TIMER, timer)
       return

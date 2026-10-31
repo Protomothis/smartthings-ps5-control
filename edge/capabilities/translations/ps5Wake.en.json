@@ -6,7 +6,23 @@
       "label": "Last wake"
     },
     "lastOutcome": {
-      "label": "Last wake result"
+      "label": "Last wake result",
+      "i18n": {
+        "value": {
+          "success": {
+            "label": "Success"
+          },
+          "timeout": {
+            "label": "No answer"
+          },
+          "error": {
+            "label": "Failed"
+          },
+          "none": {
+            "label": "None"
+          }
+        }
+      }
     }
   },
   "commands": {}

@@ -2,8 +2,10 @@ package ssdp
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -64,10 +66,19 @@ func TestServeAnswers(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer searcher.Close()
-	r := &Responder{Info: func() Info { return Info{ID: "id1", Name: "PS5", Version: "t", Port: 8580} }}
+	var logMu sync.Mutex
+	var infoLines, debugLines []string
+	rec := func(dst *[]string) func(string, ...any) {
+		return func(f string, a ...any) { logMu.Lock(); *dst = append(*dst, fmt.Sprintf(f, a...)); logMu.Unlock() }
+	}
+	r := &Responder{
+		Info:  func() Info { return Info{ID: "id1", Name: "PS5", Version: "t", Port: 8580} },
+		Log:   rec(&infoLines),
+		Debug: rec(&debugLines),
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
-	go func() { r.serve(ctx, recv, recv, net.IPv4(127, 0, 0, 1)); close(done) }()
+	go func() { r.serve(ctx, &socket{recv: recv, send: recv, localIP: net.IPv4(127, 0, 0, 1)}); close(done) }()
 
 	search := "M-SEARCH * HTTP/1.1\r\nMAN: \"ssdp:discover\"\r\nMX: 0\r\nST: " + ST + "\r\n\r\n"
 	buf := make([]byte, 2048)
@@ -99,6 +110,21 @@ func TestServeAnswers(t *testing.T) {
 	if n, _, err := searcher.ReadFromUDP(buf); err == nil {
 		t.Fatalf("unexpected answer %q", buf[:n])
 	}
+
+	// once the rate limit passes the same searcher is answered again, but
+	// only its first answer is worth an info line
+	time.Sleep(perSourceInterval)
+	_, _ = searcher.WriteToUDP([]byte(search), recv.LocalAddr().(*net.UDPAddr))
+	_ = searcher.SetReadDeadline(time.Now().Add(1200 * time.Millisecond))
+	if _, _, err := searcher.ReadFromUDP(buf); err != nil {
+		t.Fatal("no repeat answer:", err)
+	}
+	time.Sleep(50 * time.Millisecond) // the log line follows the send
+	logMu.Lock()
+	if len(infoLines) != 1 || !strings.Contains(infoLines[0], "first from this address") || len(debugLines) != 1 {
+		t.Fatalf("info %q, debug %q", infoLines, debugLines)
+	}
+	logMu.Unlock()
 
 	cancel()
 	recv.Close()
