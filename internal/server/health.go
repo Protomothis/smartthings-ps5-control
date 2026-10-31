@@ -101,14 +101,22 @@ func (s *Server) refreshAdapter(adapter string) {
 		info.Rating = ai.Rating
 	}
 	s.adapter.mu.Lock()
+	prev := s.adapter.info
 	s.adapter.info = info
 	s.adapter.adapter = adapter
 	s.adapter.refreshing = false
 	s.adapter.mu.Unlock()
-	if err != nil {
-		s.logc("wake").Warn("adapter check failed", "adapter", adapter, "err", err.Error())
-	} else {
-		s.logc("wake").Info("adapter check", "adapter", adapter, "manufacturer", ai.Manufacturer, "supported", ai.Supported, "rating", ai.Rating)
+	// The check repeats every adapterTTL; only a change is news.
+	changed := !prev.Checked || prev.Adapter != info.Adapter || prev.Error != info.Error ||
+		prev.Supported != info.Supported || prev.Manufacturer != info.Manufacturer || prev.Rating != info.Rating
+	log := s.logc("wake")
+	switch {
+	case !changed:
+		log.Debug("adapter check unchanged", "adapter", adapter, "err", info.Error)
+	case err != nil:
+		log.Warn("adapter check failed", "adapter", adapter, "err", err.Error())
+	default:
+		log.Info("adapter check", "adapter", adapter, "manufacturer", ai.Manufacturer, "supported", ai.Supported, "rating", ai.Rating)
 	}
 }
 

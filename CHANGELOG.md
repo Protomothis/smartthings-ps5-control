@@ -15,6 +15,7 @@
 - **`POST /wake` 응답 정리** — 스푸핑 전에 실패하면(미지원 칩셋 · 권한) `outcome` 이 비어 있고 `restored: false` 라 설정 페이지가 거짓 "복구 실패" 경고를 띄웠습니다. 이제 `outcome: error`, `restored: true`. `?method=network` 는 미등록이면 409, 이 빌드에 Remote Play 가 없으면 501, 깨우기를 보냈는데 안 켜졌을 때만 504 입니다
 - **`POST /standby` 기록** — 미등록(409) · 상태 조회 실패(502)로 세션을 열기 전에 거절된 요청도 `last_standby` 에 남아 장치 화면에 보입니다
 - **`GET /api/wake/last` 삭제** — `/status` 의 `server.last_wake` 와 중복이었고 아무도 쓰지 않았습니다
+- **로그 잡음 줄임** — SSDP 응답은 검색한 주소마다 첫 번째만 INFO 로, 이후는 DEBUG 로 남깁니다. LAN 의 다른 기기가 20~30초마다 `ssdp:all` 을 검색해 나흘 만에 로그 1만 줄 가운데 대부분을 채웠습니다. 10분마다의 동글 점검도 결과가 바뀔 때만 INFO · WARN 으로 남습니다
 
 ## [v0.1.0] - 2026-10-28
 

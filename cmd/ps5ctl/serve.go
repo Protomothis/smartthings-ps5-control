@@ -88,7 +88,11 @@ func cmdServe(ctx context.Context, args []string) int {
 	// SSDP responder for the Edge driver's "Scan nearby" (env PS5_SSDP=off disables).
 	if *httpAddr != "" && !strings.EqualFold(*ssdpFlag, "off") {
 		ssdpLog := hub.Logger().With(logx.ComponentKey, "ssdp")
-		responder := &ssdp.Responder{Info: srv.SSDPInfo, Log: func(f string, a ...any) { ssdpLog.Info(fmt.Sprintf(f, a...)) }}
+		responder := &ssdp.Responder{
+			Info:  srv.SSDPInfo,
+			Log:   func(f string, a ...any) { ssdpLog.Info(fmt.Sprintf(f, a...)) },
+			Debug: func(f string, a ...any) { ssdpLog.Debug(fmt.Sprintf(f, a...)) },
+		}
 		if err := responder.Start(); err != nil {
 			ssdpLog.Warn("responder not started; the driver cannot find this server by search", "err", err.Error())
 		} else {

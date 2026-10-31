@@ -152,6 +152,10 @@ func sanitizeHeader(s string) string {
 type Responder struct {
 	Info func() Info
 	Log  func(format string, args ...any)
+	// Debug receives the routine lines (repeat answers to a known
+	// searcher); nil discards them. Some LAN clients search ssdp:all every
+	// few seconds, which at Log level filled the log file within days.
+	Debug func(format string, args ...any)
 
 	mu      sync.Mutex
 	cancel  context.CancelFunc
@@ -166,18 +170,26 @@ func (r *Responder) logf(format string, args ...any) {
 	}
 }
 
-// allow reports whether ip may be answered now (once per perSourceInterval).
-func (r *Responder) allow(ip string, now time.Time) bool {
+func (r *Responder) debugf(format string, args ...any) {
+	if r.Debug != nil {
+		r.Debug(format, args...)
+	}
+}
+
+// allow reports whether ip may be answered now (once per perSourceInterval)
+// and whether ip has never been answered before.
+func (r *Responder) allow(ip string, now time.Time) (ok, first bool) {
 	r.limitMu.Lock()
 	defer r.limitMu.Unlock()
 	if r.last == nil {
 		r.last = map[string]time.Time{}
 	}
-	if t, ok := r.last[ip]; ok && now.Sub(t) < perSourceInterval {
-		return false
+	t, seen := r.last[ip]
+	if seen && now.Sub(t) < perSourceInterval {
+		return false, false
 	}
 	r.last[ip] = now
-	return true
+	return true, !seen
 }
 
 type socket struct {
@@ -341,7 +353,8 @@ func (r *Responder) serve(ctx context.Context, sock *socket) {
 		if !ok || src == nil || !sock.wants(src.IP) {
 			continue
 		}
-		if !r.allow(src.IP.String(), time.Now()) {
+		ok, first := r.allow(src.IP.String(), time.Now())
+		if !ok {
 			continue
 		}
 		delay := time.Duration(0)
@@ -361,7 +374,11 @@ func (r *Responder) serve(ctx context.Context, sock *socket) {
 				}
 				return
 			}
-			r.logf("answered search from %s", src)
+			if first {
+				r.logf("answered search from %s (first from this address)", src)
+			} else {
+				r.debugf("answered search from %s", src)
+			}
 		}(src, delay)
 	}
 }
